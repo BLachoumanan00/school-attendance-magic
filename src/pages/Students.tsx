@@ -3,39 +3,61 @@ import MainLayout from "@/components/layout/MainLayout";
 import StudentList from "@/components/attendance/StudentList";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getStudents, getAttendanceForDate, recordAttendance } from "@/lib/attendance";
-import { AttendanceRecord } from "@/lib/types";
+import { getStudents, getAttendanceForDate, recordAttendance } from "@/lib/supabaseService";
+import { AttendanceRecord, Student } from "@/lib/types";
 import { useState, useEffect } from "react";
 import { Calendar } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const Students = () => {
   const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [students, setStudents] = useState(getStudents());
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    // Update the list of students and attendance records when the component mounts or the date changes
-    setStudents(getStudents());
-    setAttendanceRecords(getAttendanceForDate(date));
-  }, [date]);
+  // Fetch students
+  const { 
+    data: students = [], 
+    isLoading: isLoadingStudents,
+    error: studentsError
+  } = useQuery({
+    queryKey: ['students'],
+    queryFn: getStudents
+  });
+
+  // Fetch attendance records for the selected date
+  const { 
+    data: attendanceRecords = [], 
+    isLoading: isLoadingAttendance,
+    error: attendanceError 
+  } = useQuery({
+    queryKey: ['attendance', date],
+    queryFn: () => getAttendanceForDate(date),
+    enabled: !!date
+  });
+
+  // Mutation for recording attendance
+  const recordAttendanceMutation = useMutation({
+    mutationFn: (data: Omit<AttendanceRecord, 'id'>) => recordAttendance(data),
+    onSuccess: () => {
+      // Invalidate the attendance query to refetch the data
+      queryClient.invalidateQueries({ queryKey: ['attendance', date] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error recording attendance",
+        description: error.message || "There was a problem updating the attendance record.",
+        variant: "destructive",
+      });
+    }
+  });
 
   const handleRecordAttendance = (studentId: string, status: AttendanceRecord['status']) => {
-    const newRecord = recordAttendance({
+    recordAttendanceMutation.mutate({
       studentId,
       date,
       status,
       notes: ""
-    });
-
-    setAttendanceRecords((prev) => {
-      const exists = prev.some(record => record.id === newRecord.id);
-      if (exists) {
-        return prev.map(record => record.id === newRecord.id ? newRecord : record);
-      } else {
-        return [...prev, newRecord];
-      }
     });
 
     const statusMessages = {
@@ -50,6 +72,27 @@ const Students = () => {
       description: `Student attendance updated for ${new Date(date).toLocaleDateString()}`,
     });
   };
+
+  // Show error if there's an issue fetching data
+  useEffect(() => {
+    if (studentsError) {
+      toast({
+        title: "Error fetching students",
+        description: (studentsError as Error).message || "Could not load student data",
+        variant: "destructive",
+      });
+    }
+
+    if (attendanceError) {
+      toast({
+        title: "Error fetching attendance",
+        description: (attendanceError as Error).message || "Could not load attendance data",
+        variant: "destructive",
+      });
+    }
+  }, [studentsError, attendanceError, toast]);
+
+  const isLoading = isLoadingStudents || isLoadingAttendance || recordAttendanceMutation.isPending;
 
   return (
     <MainLayout>
@@ -68,6 +111,7 @@ const Students = () => {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="w-auto"
+              disabled={isLoading}
             />
           </div>
         </div>
@@ -85,12 +129,18 @@ const Students = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <StudentList
-              students={students}
-              date={date}
-              attendanceRecords={attendanceRecords}
-              onRecordAttendance={handleRecordAttendance}
-            />
+            {isLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : (
+              <StudentList
+                students={students}
+                date={date}
+                attendanceRecords={attendanceRecords}
+                onRecordAttendance={handleRecordAttendance}
+              />
+            )}
           </CardContent>
         </Card>
       </div>

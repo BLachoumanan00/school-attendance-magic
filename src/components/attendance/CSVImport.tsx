@@ -11,11 +11,13 @@ import { useToast } from "@/components/ui/use-toast";
 
 interface CSVImportProps {
   onImportSuccess: (result: ImportResult) => void;
+  isLoading?: boolean;
 }
 
-const CSVImport = ({ onImportSuccess }: CSVImportProps) => {
+const CSVImport = ({ onImportSuccess, isLoading = false }: CSVImportProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [localLoading, setLocalLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -36,16 +38,13 @@ const CSVImport = ({ onImportSuccess }: CSVImportProps) => {
     }
 
     try {
+      setLocalLoading(true);
       const text = await file.text();
       const result = parseCSV(text);
       setImportResult(result);
       
       if (result.success) {
         onImportSuccess(result);
-        toast({
-          title: "Import successful",
-          description: result.message,
-        });
       } else {
         toast({
           title: "Import failed",
@@ -60,6 +59,8 @@ const CSVImport = ({ onImportSuccess }: CSVImportProps) => {
         description: "Error reading the CSV file",
         variant: "destructive",
       });
+    } finally {
+      setLocalLoading(false);
     }
   };
 
@@ -70,6 +71,8 @@ const CSVImport = ({ onImportSuccess }: CSVImportProps) => {
       description: "CSV template has been downloaded to your device",
     });
   };
+
+  const loading = isLoading || localLoading;
 
   return (
     <Card className="w-full max-w-3xl mx-auto animate-slide-up">
@@ -89,22 +92,32 @@ const CSVImport = ({ onImportSuccess }: CSVImportProps) => {
                 accept=".csv" 
                 onChange={handleFileChange}
                 className="cursor-pointer"
+                disabled={loading}
               />
             </div>
             <div className="flex space-x-2">
               <Button 
                 onClick={handleImport} 
-                disabled={!file}
+                disabled={!file || loading}
                 className="flex-1"
               >
-                <Upload className="mr-2 h-4 w-4" />
-                Import
+                {loading ? (
+                  <span className="flex items-center">
+                    <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full mr-2" />
+                    Importing...
+                  </span>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Import
+                  </>
+                )}
               </Button>
             </div>
           </div>
           
           <div className="flex justify-center">
-            <Button variant="outline" onClick={handleDownloadTemplate}>
+            <Button variant="outline" onClick={handleDownloadTemplate} disabled={loading}>
               <Download className="mr-2 h-4 w-4" />
               Download CSV Template
             </Button>
@@ -154,7 +167,7 @@ const CSVImport = ({ onImportSuccess }: CSVImportProps) => {
         </div>
       </CardContent>
       <CardFooter className="text-sm text-muted-foreground">
-        All imported data is stored locally in your browser and is not sent to any server.
+        All imported data is stored securely in a database and only accessible by authorized users.
       </CardFooter>
     </Card>
   );
