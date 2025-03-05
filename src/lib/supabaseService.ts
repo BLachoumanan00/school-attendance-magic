@@ -48,22 +48,20 @@ export const addStudents = async (students: Student[]): Promise<void> => {
 };
 
 export const clearStudents = async (): Promise<void> => {
-  // First delete all attendance records
   const { error: attendanceError } = await supabase
     .from("attendance_records")
     .delete()
-    .neq("id", "00000000-0000-0000-0000-000000000000"); // Trick to delete all records
+    .neq("id", "00000000-0000-0000-0000-000000000000");
     
   if (attendanceError) {
     console.error("Error clearing attendance records:", attendanceError);
     throw attendanceError;
   }
   
-  // Then delete all students
   const { error: studentsError } = await supabase
     .from("students")
     .delete()
-    .neq("id", "00000000-0000-0000-0000-000000000000"); // Trick to delete all records
+    .neq("id", "00000000-0000-0000-0000-000000000000");
     
   if (studentsError) {
     console.error("Error clearing students:", studentsError);
@@ -71,9 +69,30 @@ export const clearStudents = async (): Promise<void> => {
   }
 };
 
+export const deleteStudent = async (studentId: string): Promise<void> => {
+  const { error: attendanceError } = await supabase
+    .from("attendance_records")
+    .delete()
+    .eq("student_id", studentId);
+    
+  if (attendanceError) {
+    console.error("Error deleting attendance records:", attendanceError);
+    throw attendanceError;
+  }
+  
+  const { error: studentError } = await supabase
+    .from("students")
+    .delete()
+    .eq("id", studentId);
+    
+  if (studentError) {
+    console.error("Error deleting student:", studentError);
+    throw studentError;
+  }
+};
+
 // Attendance management
 export const recordAttendance = async (record: Omit<AttendanceRecord, "id">): Promise<AttendanceRecord> => {
-  // First we need to get the database ID for the student
   const { data: studentData, error: studentError } = await supabase
     .from("students")
     .select("id")
@@ -92,7 +111,6 @@ export const recordAttendance = async (record: Omit<AttendanceRecord, "id">): Pr
     notes: record.notes || ""
   };
   
-  // Check if there's already a record for this student on this date
   const { data: existingData, error: existingError } = await supabase
     .from("attendance_records")
     .select("id")
@@ -107,7 +125,6 @@ export const recordAttendance = async (record: Omit<AttendanceRecord, "id">): Pr
   let resultData;
   
   if (existingData && existingData.length > 0) {
-    // Update existing record
     const { data, error } = await supabase
       .from("attendance_records")
       .update(dbRecord)
@@ -122,7 +139,6 @@ export const recordAttendance = async (record: Omit<AttendanceRecord, "id">): Pr
     
     resultData = data;
   } else {
-    // Insert new record
     const { data, error } = await supabase
       .from("attendance_records")
       .insert(dbRecord)
@@ -188,7 +204,6 @@ export const getStudentAttendance = async (studentId: string): Promise<Attendanc
 
 // Statistics and summaries
 export const getAttendanceSummary = async (date: string): Promise<AttendanceSummary> => {
-  // Get students count
   const { count: totalStudents, error: studentsError } = await supabase
     .from("students")
     .select("*", { count: "exact", head: true });
@@ -198,7 +213,6 @@ export const getAttendanceSummary = async (date: string): Promise<AttendanceSumm
     throw studentsError;
   }
   
-  // Get attendance records for the date
   const { data: records, error: recordsError } = await supabase
     .from("attendance_records")
     .select("status")
@@ -225,7 +239,6 @@ export const getAttendanceSummary = async (date: string): Promise<AttendanceSumm
 };
 
 export const getClassSummaries = async (): Promise<ClassSummary[]> => {
-  // Get unique classes
   const { data: classData, error: classError } = await supabase
     .from("students")
     .select("class")
@@ -238,11 +251,9 @@ export const getClassSummaries = async (): Promise<ClassSummary[]> => {
   
   const uniqueClasses = Array.from(new Set(classData.map(c => c.class)));
   
-  // Get attendance data for all classes
   const summaries: ClassSummary[] = [];
   
   for (const className of uniqueClasses) {
-    // Count students in this class
     const { count: totalStudents, error: countError } = await supabase
       .from("students")
       .select("*", { count: "exact", head: true })
@@ -253,7 +264,6 @@ export const getClassSummaries = async (): Promise<ClassSummary[]> => {
       throw countError;
     }
     
-    // Get student IDs for this class
     const { data: studentsInClass, error: studentsError } = await supabase
       .from("students")
       .select("id")
@@ -266,7 +276,6 @@ export const getClassSummaries = async (): Promise<ClassSummary[]> => {
     
     const studentIds = studentsInClass.map(s => s.id);
     
-    // Get unique dates for attendance records
     const { data: dateData, error: dateError } = await supabase
       .from("attendance_records")
       .select("date")
@@ -279,7 +288,6 @@ export const getClassSummaries = async (): Promise<ClassSummary[]> => {
     
     const uniqueDates = Array.from(new Set(dateData.map(d => d.date)));
     
-    // Count present or late records for students in this class
     let presentCount = 0;
     
     if (studentIds.length > 0 && uniqueDates.length > 0) {
@@ -297,7 +305,6 @@ export const getClassSummaries = async (): Promise<ClassSummary[]> => {
       presentCount = count || 0;
     }
     
-    // Calculate attendance rate
     const totalPossibleRecords = totalStudents * (uniqueDates.length || 1);
     const attendanceRate = totalPossibleRecords > 0 
       ? (presentCount / totalPossibleRecords) * 100 

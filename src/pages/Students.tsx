@@ -1,16 +1,19 @@
+
 import MainLayout from "@/components/layout/MainLayout";
 import StudentList from "@/components/attendance/StudentList";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getStudents, getAttendanceForDate, recordAttendance } from "@/lib/supabaseService";
+import { getStudents, getAttendanceForDate, recordAttendance, deleteStudent } from "@/lib/supabaseService";
 import { AttendanceRecord, Student } from "@/lib/types";
 import { useState, useEffect } from "react";
 import { Calendar } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const Students = () => {
   const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -47,6 +50,25 @@ const Students = () => {
     }
   });
 
+  const deleteStudentMutation = useMutation({
+    mutationFn: (studentId: string) => deleteStudent(studentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast({
+        title: "Student deleted",
+        description: "The student has been removed from the system.",
+      });
+      setStudentToDelete(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error deleting student",
+        description: error.message || "There was a problem deleting the student.",
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleRecordAttendance = (studentId: string, status: AttendanceRecord['status']) => {
     recordAttendanceMutation.mutate({
       studentId,
@@ -68,6 +90,19 @@ const Students = () => {
     });
   };
 
+  const handleDeleteStudent = (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (student) {
+      setStudentToDelete(student);
+    }
+  };
+
+  const confirmDeleteStudent = () => {
+    if (studentToDelete) {
+      deleteStudentMutation.mutate(studentToDelete.id);
+    }
+  };
+
   useEffect(() => {
     if (studentsError) {
       toast({
@@ -86,7 +121,7 @@ const Students = () => {
     }
   }, [studentsError, attendanceError, toast]);
 
-  const isLoading = isLoadingStudents || isLoadingAttendance || recordAttendanceMutation.isPending;
+  const isLoading = isLoadingStudents || isLoadingAttendance || recordAttendanceMutation.isPending || deleteStudentMutation.isPending;
 
   return (
     <MainLayout>
@@ -133,12 +168,39 @@ const Students = () => {
                 date={date}
                 attendanceRecords={attendanceRecords}
                 onRecordAttendance={handleRecordAttendance}
+                onDeleteStudent={handleDeleteStudent}
                 isLoading={isLoading}
               />
             )}
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={!!studentToDelete} onOpenChange={(open) => !open && setStudentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this student?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {studentToDelete && (
+                <p>
+                  You are about to delete <strong>{studentToDelete.firstName} {studentToDelete.lastName}</strong> (ID: {studentToDelete.studentId}).
+                  This action cannot be undone and will remove all attendance records for this student.
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteStudentMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteStudent} 
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleteStudentMutation.isPending}
+            >
+              {deleteStudentMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 };

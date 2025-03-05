@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Student, AttendanceRecord } from "@/lib/types";
 import { useState } from "react";
-import { CheckCircle, XCircle, Clock, AlertCircle, Search } from "lucide-react";
+import { CheckCircle, XCircle, Clock, AlertCircle, Search, Download, Trash2 } from "lucide-react";
 
 interface StudentListProps {
   students: Student[];
@@ -12,6 +12,7 @@ interface StudentListProps {
   date?: string;
   attendanceRecords?: AttendanceRecord[];
   onRecordAttendance?: (studentId: string, status: AttendanceRecord['status']) => void;
+  onDeleteStudent?: (studentId: string) => void;
 }
 
 const StudentList = ({ 
@@ -19,7 +20,8 @@ const StudentList = ({
   isLoading, 
   date, 
   attendanceRecords = [], 
-  onRecordAttendance 
+  onRecordAttendance,
+  onDeleteStudent
 }: StudentListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   
@@ -37,20 +39,65 @@ const StudentList = ({
     student.class.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Export student list as CSV
+  const exportToCSV = () => {
+    // Create CSV header
+    const headers = ['Student ID', 'First Name', 'Last Name', 'Class', 'Grade Level', 'Email', 'Contact Phone'];
+    
+    // Create CSV rows
+    const csvData = filteredStudents.map(student => [
+      student.studentId,
+      student.firstName,
+      student.lastName,
+      student.class,
+      student.gradeLevel,
+      student.email || '',
+      student.contactPhone || ''
+    ]);
+    
+    // Combine header and rows
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => row.join(','))
+    ].join('\n');
+    
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `students_list_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   if (isLoading) {
     return <div>Loading students...</div>;
   }
 
   return (
     <div className="space-y-4 animate-slide-up">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search students..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="relative w-full sm:w-auto">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search students..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 w-full"
+          />
+        </div>
+        <Button 
+          onClick={exportToCSV} 
+          variant="outline" 
+          className="w-full sm:w-auto"
+          disabled={filteredStudents.length === 0}
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Export to CSV
+        </Button>
       </div>
       
       <div className="rounded-md border">
@@ -61,6 +108,7 @@ const StudentList = ({
               <TableHead>Name</TableHead>
               <TableHead>Class</TableHead>
               {onRecordAttendance && <TableHead>Attendance</TableHead>}
+              {onDeleteStudent && <TableHead className="w-16">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -115,12 +163,25 @@ const StudentList = ({
                         </div>
                       </TableCell>
                     )}
+                    {onDeleteStudent && (
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => onDeleteStudent(student.id)}
+                          title="Delete Student"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={onRecordAttendance ? 4 : 3} className="h-24 text-center">
+                <TableCell colSpan={onRecordAttendance && onDeleteStudent ? 5 : (onRecordAttendance || onDeleteStudent ? 4 : 3)} className="h-24 text-center">
                   No students found.
                 </TableCell>
               </TableRow>
