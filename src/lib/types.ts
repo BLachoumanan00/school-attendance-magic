@@ -31,6 +31,7 @@ export interface ClassSummary {
   className: string;
   totalStudents: number;
   attendanceRate: number;
+  presentCount: number; // Added this field for present students count
 }
 
 export interface ImportResult {

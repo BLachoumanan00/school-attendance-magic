@@ -8,12 +8,19 @@ import { CheckCircle, XCircle, Clock, AlertCircle, Search } from "lucide-react";
 
 interface StudentListProps {
   students: Student[];
-  date: string;
-  attendanceRecords: AttendanceRecord[];
-  onRecordAttendance: (studentId: string, status: AttendanceRecord['status']) => void;
+  isLoading: boolean;
+  date?: string;
+  attendanceRecords?: AttendanceRecord[];
+  onRecordAttendance?: (studentId: string, status: AttendanceRecord['status']) => void;
 }
 
-const StudentList = ({ students, date, attendanceRecords, onRecordAttendance }: StudentListProps) => {
+const StudentList = ({ 
+  students, 
+  isLoading, 
+  date, 
+  attendanceRecords = [], 
+  onRecordAttendance 
+}: StudentListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   
   // Get attendance status for a student
@@ -29,6 +36,10 @@ const StudentList = ({ students, date, attendanceRecords, onRecordAttendance }: 
     student.studentId.includes(searchTerm) ||
     student.class.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (isLoading) {
+    return <div>Loading students...</div>;
+  }
 
   return (
     <div className="space-y-4 animate-slide-up">
@@ -49,7 +60,7 @@ const StudentList = ({ students, date, attendanceRecords, onRecordAttendance }: 
               <TableHead>Student ID</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Class</TableHead>
-              <TableHead>Attendance</TableHead>
+              {onRecordAttendance && <TableHead>Attendance</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -62,52 +73,54 @@ const StudentList = ({ students, date, attendanceRecords, onRecordAttendance }: 
                     <TableCell className="font-medium">{student.studentId}</TableCell>
                     <TableCell>{student.lastName}, {student.firstName}</TableCell>
                     <TableCell>{student.class}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-1">
-                        <Button
-                          size="sm"
-                          variant={status === 'present' ? 'default' : 'outline'}
-                          className="h-8 w-8 p-0 rounded-full"
-                          onClick={() => onRecordAttendance(student.id, 'present')}
-                          title="Present"
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={status === 'absent' ? 'default' : 'outline'}
-                          className="h-8 w-8 p-0 rounded-full"
-                          onClick={() => onRecordAttendance(student.id, 'absent')}
-                          title="Absent"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={status === 'late' ? 'default' : 'outline'}
-                          className="h-8 w-8 p-0 rounded-full"
-                          onClick={() => onRecordAttendance(student.id, 'late')}
-                          title="Late"
-                        >
-                          <Clock className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={status === 'excused' ? 'default' : 'outline'}
-                          className="h-8 w-8 p-0 rounded-full"
-                          onClick={() => onRecordAttendance(student.id, 'excused')}
-                          title="Excused"
-                        >
-                          <AlertCircle className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {onRecordAttendance && (
+                      <TableCell>
+                        <div className="flex space-x-1">
+                          <Button
+                            size="sm"
+                            variant={status === 'present' ? 'default' : 'outline'}
+                            className="h-8 w-8 p-0 rounded-full"
+                            onClick={() => onRecordAttendance(student.id, 'present')}
+                            title="Present"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={status === 'absent' ? 'default' : 'outline'}
+                            className="h-8 w-8 p-0 rounded-full"
+                            onClick={() => onRecordAttendance(student.id, 'absent')}
+                            title="Absent"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={status === 'late' ? 'default' : 'outline'}
+                            className="h-8 w-8 p-0 rounded-full"
+                            onClick={() => onRecordAttendance(student.id, 'late')}
+                            title="Late"
+                          >
+                            <Clock className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={status === 'excused' ? 'default' : 'outline'}
+                            className="h-8 w-8 p-0 rounded-full"
+                            onClick={() => onRecordAttendance(student.id, 'excused')}
+                            title="Excused"
+                          >
+                            <AlertCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
+                <TableCell colSpan={onRecordAttendance ? 4 : 3} className="h-24 text-center">
                   No students found.
                 </TableCell>
               </TableRow>

@@ -1,9 +1,10 @@
+
 import React, { useState } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import StatCard from "@/components/dashboard/StatCard";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Students as StudentsGrid } from "@/components/attendance/StudentList";
+import StudentList from "@/components/attendance/StudentList";
 import { Calendar, Check, Users, XCircle } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { 
@@ -11,7 +12,7 @@ import {
   getTotalAttendanceByClass, 
   getTotalPresences, 
   getTodayAttendance 
-} from "@/lib/attendance";
+} from "@/lib/attendanceSupabase";
 import { AttendanceSummary, ClassSummary, Student } from "@/lib/types";
 
 const formatDate = (date: Date): string => {
@@ -27,40 +28,54 @@ const Index = () => {
     queryFn: async () => {
       const { data, error } = await supabase.from('students').select('*');
       if (error) throw error;
-      return data as Student[];
+      
+      // Transform the data to match our Student type
+      return data.map(student => ({
+        id: student.id,
+        firstName: student.first_name,
+        lastName: student.last_name,
+        class: student.class,
+        gradeLevel: student.grade_level,
+        studentId: student.student_id,
+        email: student.email,
+        contactPhone: student.contact_phone
+      })) as Student[];
     },
-    onSuccess: () => {
-      console.log('Students loaded successfully');
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error loading students",
-        description: error.message,
-        variant: "destructive",
-      });
+    meta: {
+      onError: (error: any) => {
+        toast({
+          title: "Error loading students",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     }
   });
 
   // Fetch attendance summary
   const { data: attendanceSummary, isLoading: isLoadingAttendance } = useQuery({
     queryKey: ['attendance-summary'],
-    queryFn: async (): Promise<AttendanceSummary> => {
+    queryFn: async (): Promise<{
+      total: number;
+      presentToday: number;
+      totalPresences: number;
+      totalAbsences: number;
+    }> => {
+      if (!students.length) return { total: 0, presentToday: 0, totalPresences: 0, totalAbsences: 0 };
+      
       const totalStudents = students.length;
       const presentToday = await getTodayAttendance(students);
       const totalPresences = await getTotalPresences(students);
       const totalAbsences = await getTotalAbsences(students);
       
       return {
-        totalStudents,
+        total: totalStudents,
         presentToday,
         totalPresences,
         totalAbsences,
       };
     },
     enabled: students.length > 0,
-    onSuccess: () => {
-      console.log('Attendance summary loaded successfully');
-    },
     meta: {
       onError: (error: any) => {
         toast({
@@ -75,13 +90,11 @@ const Index = () => {
   // Fetch class summaries
   const { data: classSummaries = [], isLoading: isLoadingClasses } = useQuery({
     queryKey: ['class-summaries'],
-    queryFn: async (): Promise<ClassSummary[]> => {
+    queryFn: async () => {
+      if (!students.length) return [];
       return await getTotalAttendanceByClass(students);
     },
     enabled: students.length > 0,
-    onSuccess: () => {
-      console.log('Class summaries loaded successfully');
-    },
     meta: {
       onError: (error: any) => {
         toast({
@@ -101,26 +114,26 @@ const Index = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <StatCard
             title="Total Students"
-            value={attendanceSummary?.totalStudents || 0}
-            icon={Users}
+            value={attendanceSummary?.total || 0}
+            icon={<Users className="h-5 w-5" />}
             isLoading={isLoadingStudents || isLoadingAttendance}
           />
           <StatCard
             title="Present Today"
             value={attendanceSummary?.presentToday || 0}
-            icon={Check}
+            icon={<Check className="h-5 w-5" />}
             isLoading={isLoadingStudents || isLoadingAttendance}
           />
           <StatCard
             title="Total Presences"
             value={attendanceSummary?.totalPresences || 0}
-            icon={Calendar}
+            icon={<Calendar className="h-5 w-5" />}
             isLoading={isLoadingStudents || isLoadingAttendance}
           />
           <StatCard
             title="Total Absences"
             value={attendanceSummary?.totalAbsences || 0}
-            icon={XCircle}
+            icon={<XCircle className="h-5 w-5" />}
             isLoading={isLoadingStudents || isLoadingAttendance}
           />
         </div>
@@ -136,9 +149,10 @@ const Index = () => {
               <StatCard
                 key={classSummary.className}
                 title={classSummary.className}
-                value={classSummary.presentStudents}
+                value={classSummary.presentCount || 0}
+                icon={<Users className="h-5 w-5" />}
+                description={`${classSummary.presentCount || 0} / ${classSummary.totalStudents} Present`}
                 isLoading={isLoadingClasses}
-                description={`${classSummary.presentStudents} / ${classSummary.totalStudents} Present`}
               />
             ))}
           </div>
@@ -146,7 +160,11 @@ const Index = () => {
 
         <div className="mt-8">
           <h2 className="text-2xl font-semibold mb-3">Student List</h2>
-          <StudentsGrid students={students} isLoading={isLoadingStudents} />
+          {students.length > 0 ? (
+            <StudentList students={students} isLoading={isLoadingStudents} />
+          ) : (
+            <p>No students found. Import students first.</p>
+          )}
         </div>
       </div>
     </MainLayout>
