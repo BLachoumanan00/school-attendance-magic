@@ -5,7 +5,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import StudentList from "@/components/attendance/StudentList";
-import { Calendar, Check, Users, XCircle } from "lucide-react";
+import { Calendar, Check, Users, XCircle, Percent } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { 
   getTotalAbsences, 
@@ -60,19 +60,26 @@ const Index = () => {
       presentToday: number;
       totalPresences: number;
       totalAbsences: number;
+      presentPercentage: number;
     }> => {
-      if (!students.length) return { total: 0, presentToday: 0, totalPresences: 0, totalAbsences: 0 };
+      if (!students.length) return { total: 0, presentToday: 0, totalPresences: 0, totalAbsences: 0, presentPercentage: 0 };
       
       const totalStudents = students.length;
       const presentToday = await getTodayAttendance(students);
       const totalPresences = await getTotalPresences(students);
       const totalAbsences = await getTotalAbsences(students);
       
+      // Calculate percentage of students present today
+      const presentPercentage = totalStudents > 0 
+        ? Math.round((presentToday / totalStudents) * 100) 
+        : 0;
+      
       return {
         total: totalStudents,
         presentToday,
         totalPresences,
         totalAbsences,
+        presentPercentage,
       };
     },
     enabled: students.length > 0,
@@ -111,7 +118,7 @@ const Index = () => {
       <div className="container mx-auto py-6">
         <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
           <StatCard
             title="Total Students"
             value={attendanceSummary?.total || 0}
@@ -122,6 +129,12 @@ const Index = () => {
             title="Present Today"
             value={attendanceSummary?.presentToday || 0}
             icon={<Check className="h-5 w-5" />}
+            isLoading={isLoadingStudents || isLoadingAttendance}
+          />
+          <StatCard
+            title="Attendance %"
+            value={`${attendanceSummary?.presentPercentage || 0}%`}
+            icon={<Percent className="h-5 w-5" />}
             isLoading={isLoadingStudents || isLoadingAttendance}
           />
           <StatCard
