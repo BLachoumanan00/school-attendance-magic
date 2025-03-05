@@ -8,9 +8,10 @@ interface StatCardProps {
   icon: React.ReactNode;
   description?: string;
   className?: string;
+  isLoading?: boolean;
 }
 
-const StatCard = ({ title, value, icon, description, className }: StatCardProps) => {
+const StatCard = ({ title, value, icon, description, className, isLoading }: StatCardProps) => {
   return (
     <Card className={cn("overflow-hidden transition-all duration-300 hover:shadow-md", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
@@ -20,9 +21,15 @@ const StatCard = ({ title, value, icon, description, className }: StatCardProps)
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && (
-          <p className="text-xs text-muted-foreground mt-1">{description}</p>
+        {isLoading ? (
+          <div className="h-8 w-24 bg-muted animate-pulse rounded-md"></div>
+        ) : (
+          <>
+            <div className="text-2xl font-bold">{value}</div>
+            {description && (
+              <p className="text-xs text-muted-foreground mt-1">{description}</p>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

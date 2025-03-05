@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Student, AttendanceRecord, AttendanceSummary, ClassSummary, ImportResult } from "./types";
 
@@ -307,7 +306,8 @@ export const getClassSummaries = async (): Promise<ClassSummary[]> => {
     summaries.push({
       className,
       totalStudents: totalStudents || 0,
-      attendanceRate
+      attendanceRate,
+      presentCount: presentCount || 0
     });
   }
   

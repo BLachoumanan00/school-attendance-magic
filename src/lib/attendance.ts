@@ -1,4 +1,3 @@
-
 import { Student, AttendanceRecord, AttendanceSummary, ClassSummary } from './types';
 
 // Mock data storage - in a real app, this would connect to a database
@@ -100,7 +99,8 @@ export const getClassSummaries = (): ClassSummary[] => {
     return {
       className,
       totalStudents: students.length,
-      attendanceRate
+      attendanceRate,
+      presentCount
     };
   });
 };

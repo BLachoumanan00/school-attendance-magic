@@ -1,4 +1,3 @@
-
 import MainLayout from "@/components/layout/MainLayout";
 import StudentList from "@/components/attendance/StudentList";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +14,6 @@ const Students = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch students
   const { 
     data: students = [], 
     isLoading: isLoadingStudents,
@@ -25,7 +23,6 @@ const Students = () => {
     queryFn: getStudents
   });
 
-  // Fetch attendance records for the selected date
   const { 
     data: attendanceRecords = [], 
     isLoading: isLoadingAttendance,
@@ -36,11 +33,9 @@ const Students = () => {
     enabled: !!date
   });
 
-  // Mutation for recording attendance
   const recordAttendanceMutation = useMutation({
     mutationFn: (data: Omit<AttendanceRecord, 'id'>) => recordAttendance(data),
     onSuccess: () => {
-      // Invalidate the attendance query to refetch the data
       queryClient.invalidateQueries({ queryKey: ['attendance', date] });
     },
     onError: (error: any) => {
@@ -73,7 +68,6 @@ const Students = () => {
     });
   };
 
-  // Show error if there's an issue fetching data
   useEffect(() => {
     if (studentsError) {
       toast({
@@ -139,6 +133,7 @@ const Students = () => {
                 date={date}
                 attendanceRecords={attendanceRecords}
                 onRecordAttendance={handleRecordAttendance}
+                isLoading={isLoading}
               />
             )}
           </CardContent>
