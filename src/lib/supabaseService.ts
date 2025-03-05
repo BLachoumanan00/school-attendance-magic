@@ -70,6 +70,9 @@ export const clearStudents = async (): Promise<void> => {
 };
 
 export const deleteStudent = async (studentId: string): Promise<void> => {
+  console.log("Deleting attendance records for student:", studentId);
+  
+  // First delete the attendance records
   const { error: attendanceError } = await supabase
     .from("attendance_records")
     .delete()
@@ -80,6 +83,9 @@ export const deleteStudent = async (studentId: string): Promise<void> => {
     throw attendanceError;
   }
   
+  console.log("Deleting student with ID:", studentId);
+  
+  // Then delete the student
   const { error: studentError } = await supabase
     .from("students")
     .delete()
@@ -89,6 +95,8 @@ export const deleteStudent = async (studentId: string): Promise<void> => {
     console.error("Error deleting student:", studentError);
     throw studentError;
   }
+  
+  console.log("Student and attendance records deleted successfully");
 };
 
 // Attendance management

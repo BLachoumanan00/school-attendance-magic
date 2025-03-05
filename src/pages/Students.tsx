@@ -61,6 +61,7 @@ const Students = () => {
       setStudentToDelete(null);
     },
     onError: (error: any) => {
+      console.error("Delete error:", error);
       toast({
         title: "Error deleting student",
         description: error.message || "There was a problem deleting the student.",
@@ -99,6 +100,7 @@ const Students = () => {
 
   const confirmDeleteStudent = () => {
     if (studentToDelete) {
+      console.log("Deleting student with ID:", studentToDelete.id);
       deleteStudentMutation.mutate(studentToDelete.id);
     }
   };
