@@ -1,194 +1,153 @@
-
+import React, { useState } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import StatCard from "@/components/dashboard/StatCard";
-import AttendanceCard from "@/components/attendance/AttendanceCard";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { getAttendanceSummary, getClassSummaries, getStudents } from "@/lib/supabaseService";
-import { useState } from "react";
-import { Users, UserCheck, UserX, Clock, Calendar } from "lucide-react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Students as StudentsGrid } from "@/components/attendance/StudentList";
+import { Calendar, Check, Users, XCircle } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { 
+  getTotalAbsences, 
+  getTotalAttendanceByClass, 
+  getTotalPresences, 
+  getTodayAttendance 
+} from "@/lib/attendance";
+import { AttendanceSummary, ClassSummary, Student } from "@/lib/types";
+
+const formatDate = (date: Date): string => {
+  return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+};
 
 const Index = () => {
-  const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const { toast } = useToast();
+  const [currentDate] = useState(new Date());
 
-  // Fetch total students count
-  const { 
-    data: students = [],
-    isLoading: isLoadingStudents
-  } = useQuery({
+  // Fetch all students
+  const { data: students = [], isLoading: isLoadingStudents } = useQuery({
     queryKey: ['students'],
-    queryFn: getStudents,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('students').select('*');
+      if (error) throw error;
+      return data as Student[];
+    },
+    onSuccess: () => {
+      console.log('Students loaded successfully');
+    },
     onError: (error: any) => {
       toast({
-        title: "Error fetching students",
-        description: error.message || "Could not load student data",
+        title: "Error loading students",
+        description: error.message,
         variant: "destructive",
       });
     }
   });
 
-  // Fetch attendance summary for the selected date
-  const { 
-    data: attendanceSummary,
-    isLoading: isLoadingAttendance 
-  } = useQuery({
-    queryKey: ['attendanceSummary', date],
-    queryFn: () => getAttendanceSummary(date),
-    onError: (error: any) => {
-      toast({
-        title: "Error fetching attendance summary",
-        description: error.message || "Could not load attendance data",
-        variant: "destructive",
-      });
+  // Fetch attendance summary
+  const { data: attendanceSummary, isLoading: isLoadingAttendance } = useQuery({
+    queryKey: ['attendance-summary'],
+    queryFn: async (): Promise<AttendanceSummary> => {
+      const totalStudents = students.length;
+      const presentToday = await getTodayAttendance(students);
+      const totalPresences = await getTotalPresences(students);
+      const totalAbsences = await getTotalAbsences(students);
+      
+      return {
+        totalStudents,
+        presentToday,
+        totalPresences,
+        totalAbsences,
+      };
     },
-    placeholderData: {
-      date,
-      present: 0,
-      absent: 0,
-      late: 0,
-      excused: 0,
-      total: 0
+    enabled: students.length > 0,
+    onSuccess: () => {
+      console.log('Attendance summary loaded successfully');
+    },
+    meta: {
+      onError: (error: any) => {
+        toast({
+          title: "Error loading attendance summary",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     }
   });
 
   // Fetch class summaries
-  const { 
-    data: classSummaries = [],
-    isLoading: isLoadingClassSummaries 
-  } = useQuery({
-    queryKey: ['classSummaries'],
-    queryFn: getClassSummaries,
-    onError: (error: any) => {
-      toast({
-        title: "Error fetching class summaries",
-        description: error.message || "Could not load class data",
-        variant: "destructive",
-      });
+  const { data: classSummaries = [], isLoading: isLoadingClasses } = useQuery({
+    queryKey: ['class-summaries'],
+    queryFn: async (): Promise<ClassSummary[]> => {
+      return await getTotalAttendanceByClass(students);
+    },
+    enabled: students.length > 0,
+    onSuccess: () => {
+      console.log('Class summaries loaded successfully');
+    },
+    meta: {
+      onError: (error: any) => {
+        toast({
+          title: "Error loading class summaries",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     }
   });
 
-  const isLoading = isLoadingStudents || isLoadingAttendance || isLoadingClassSummaries;
-  const totalStudents = students.length;
-
   return (
     <MainLayout>
-      <div className="space-y-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold mb-1">Dashboard</h1>
-            <p className="text-muted-foreground">
-              Manage and track student attendance records
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-auto"
-              disabled={isLoading}
-            />
+      <div className="container mx-auto py-6">
+        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          <StatCard
+            title="Total Students"
+            value={attendanceSummary?.totalStudents || 0}
+            icon={Users}
+            isLoading={isLoadingStudents || isLoadingAttendance}
+          />
+          <StatCard
+            title="Present Today"
+            value={attendanceSummary?.presentToday || 0}
+            icon={Check}
+            isLoading={isLoadingStudents || isLoadingAttendance}
+          />
+          <StatCard
+            title="Total Presences"
+            value={attendanceSummary?.totalPresences || 0}
+            icon={Calendar}
+            isLoading={isLoadingStudents || isLoadingAttendance}
+          />
+          <StatCard
+            title="Total Absences"
+            value={attendanceSummary?.totalAbsences || 0}
+            icon={XCircle}
+            isLoading={isLoadingStudents || isLoadingAttendance}
+          />
+        </div>
+
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold mb-3">Today is {formatDate(currentDate)}</h2>
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-semibold mb-3">Attendance by Class</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {classSummaries.map((classSummary) => (
+              <StatCard
+                key={classSummary.className}
+                title={classSummary.className}
+                value={classSummary.presentStudents}
+                isLoading={isLoadingClasses}
+                description={`${classSummary.presentStudents} / ${classSummary.totalStudents} Present`}
+              />
+            ))}
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard
-                title="Total Students"
-                value={totalStudents}
-                icon={<Users className="h-4 w-4" />}
-                description="Enrolled students"
-                className="animate-slide-up [animation-delay:100ms]"
-              />
-              <StatCard
-                title="Present Today"
-                value={attendanceSummary?.present || 0}
-                icon={<UserCheck className="h-4 w-4" />}
-                description={`${Math.round(((attendanceSummary?.present || 0) / totalStudents) * 100) || 0}% attendance rate`}
-                className="animate-slide-up [animation-delay:200ms]"
-              />
-              <StatCard
-                title="Absent Today"
-                value={attendanceSummary?.absent || 0}
-                icon={<UserX className="h-4 w-4" />}
-                description={`${Math.round(((attendanceSummary?.absent || 0) / totalStudents) * 100) || 0}% absence rate`}
-                className="animate-slide-up [animation-delay:300ms]"
-              />
-              <StatCard
-                title="Late Arrivals"
-                value={attendanceSummary?.late || 0}
-                icon={<Clock className="h-4 w-4" />}
-                description={`${Math.round(((attendanceSummary?.late || 0) / totalStudents) * 100) || 0}% tardiness rate`}
-                className="animate-slide-up [animation-delay:400ms]"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {attendanceSummary && (
-                <AttendanceCard summary={attendanceSummary} className="lg:col-span-1 animate-slide-up [animation-delay:500ms]" />
-              )}
-              
-              <Card className="lg:col-span-2 animate-slide-up [animation-delay:600ms]">
-                <CardHeader>
-                  <CardTitle>Class Attendance Overview</CardTitle>
-                  <CardDescription>Attendance rates by class</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {classSummaries.length > 0 ? (
-                    <div className="space-y-6">
-                      {classSummaries.map((classSummary) => (
-                        <div key={classSummary.className} className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <h3 className="font-medium">{classSummary.className}</h3>
-                              <p className="text-sm text-muted-foreground">
-                                {classSummary.totalStudents} students
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-lg font-bold">
-                                {classSummary.attendanceRate.toFixed(1)}%
-                              </span>
-                            </div>
-                          </div>
-                          <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-primary transition-all duration-300"
-                              style={{ width: `${classSummary.attendanceRate}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <p>No class data available</p>
-                    </div>
-                  )}
-                  
-                  <div className="mt-6 flex justify-center">
-                    <Link to="/students">
-                      <Button>
-                        Take Attendance
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </>
-        )}
+        <div className="mt-8">
+          <h2 className="text-2xl font-semibold mb-3">Student List</h2>
+          <StudentsGrid students={students} isLoading={isLoadingStudents} />
+        </div>
       </div>
     </MainLayout>
   );

@@ -1,7 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/contexts/ThemeContext";
-import { Sun, Moon, School, Menu } from "lucide-react";
+import { Sun, Moon, School, Menu, Settings } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -13,7 +13,8 @@ const Header = () => {
   const navLinks = [
     { name: "Dashboard", path: "/" },
     { name: "Students", path: "/students" },
-    { name: "Import", path: "/import" }
+    { name: "Import", path: "/import" },
+    { name: "Settings", path: "/settings" }
   ];
 
   return (
