@@ -1,4 +1,3 @@
-
 import MainLayout from "@/components/layout/MainLayout";
 import StudentList from "@/components/attendance/StudentList";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +66,7 @@ const Students = () => {
         description: error.message || "There was a problem deleting the student.",
         variant: "destructive",
       });
+      setStudentToDelete(null);
     }
   });
 
@@ -109,7 +109,7 @@ const Students = () => {
 
   const confirmDeleteStudent = () => {
     if (studentToDelete) {
-      console.log("Deleting student with ID:", studentToDelete.id);
+      console.log("Confirming deletion of student:", studentToDelete.id);
       deleteStudentMutation.mutate(studentToDelete.id);
     }
   };
@@ -193,10 +193,10 @@ const Students = () => {
             <AlertDialogTitle>Are you sure you want to delete this student?</AlertDialogTitle>
             <AlertDialogDescription>
               {studentToDelete && (
-                <p>
+                <>
                   You are about to delete <strong>{studentToDelete.firstName} {studentToDelete.lastName}</strong> (ID: {studentToDelete.studentId}).
                   This action cannot be undone and will remove all attendance records for this student.
-                </p>
+                </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

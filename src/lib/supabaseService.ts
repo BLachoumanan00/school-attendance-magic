@@ -70,33 +70,38 @@ export const clearStudents = async (): Promise<void> => {
 };
 
 export const deleteStudent = async (studentId: string): Promise<void> => {
-  console.log("Deleting attendance records for student:", studentId);
-  
-  // First delete the attendance records
-  const { error: attendanceError } = await supabase
-    .from("attendance_records")
-    .delete()
-    .eq("student_id", studentId);
-    
-  if (attendanceError) {
-    console.error("Error deleting attendance records:", attendanceError);
-    throw attendanceError;
-  }
-  
   console.log("Deleting student with ID:", studentId);
   
-  // Then delete the student
-  const { error: studentError } = await supabase
-    .from("students")
-    .delete()
-    .eq("id", studentId);
+  try {
+    // First delete the attendance records
+    console.log("Deleting attendance records for student:", studentId);
+    const { error: attendanceError } = await supabase
+      .from("attendance_records")
+      .delete()
+      .eq("student_id", studentId);
+      
+    if (attendanceError) {
+      console.error("Error deleting attendance records:", attendanceError);
+      throw new Error(`Failed to delete attendance records: ${attendanceError.message}`);
+    }
     
-  if (studentError) {
-    console.error("Error deleting student:", studentError);
-    throw studentError;
+    // Then delete the student
+    console.log("Deleting student record with ID:", studentId);
+    const { error: studentError } = await supabase
+      .from("students")
+      .delete()
+      .eq("id", studentId);
+      
+    if (studentError) {
+      console.error("Error deleting student:", studentError);
+      throw new Error(`Failed to delete student: ${studentError.message}`);
+    }
+    
+    console.log("Student and attendance records deleted successfully");
+  } catch (error) {
+    console.error("Delete operation failed:", error);
+    throw error; // Re-throw to handle in UI
   }
-  
-  console.log("Student and attendance records deleted successfully");
 };
 
 // Attendance management
