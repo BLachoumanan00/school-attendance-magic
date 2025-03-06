@@ -92,9 +92,18 @@ const Students = () => {
   };
 
   const handleDeleteStudent = (studentId: string) => {
+    console.log("Preparing to delete student:", studentId);
     const student = students.find(s => s.id === studentId);
     if (student) {
+      console.log("Found student to delete:", student);
       setStudentToDelete(student);
+    } else {
+      console.error("Student not found with ID:", studentId);
+      toast({
+        title: "Error",
+        description: "Could not find student to delete.",
+        variant: "destructive",
+      });
     }
   };
 

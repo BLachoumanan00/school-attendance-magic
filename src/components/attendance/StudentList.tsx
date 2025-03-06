@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Student, AttendanceRecord } from "@/lib/types";
 import { useState } from "react";
-import { CheckCircle, XCircle, Clock, AlertCircle, Search, Download, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, AlertCircle, Search, Download, Trash2, ArrowUpDown } from "lucide-react";
 
 interface StudentListProps {
   students: Student[];
@@ -24,11 +24,23 @@ const StudentList = ({
   onDeleteStudent
 }: StudentListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<string>("lastName");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   
   // Get attendance status for a student
   const getAttendanceStatus = (studentId: string): AttendanceRecord['status'] | null => {
     const record = attendanceRecords.find(r => r.studentId === studentId);
     return record ? record.status : null;
+  };
+  
+  // Handle sort
+  const handleSort = (key: string) => {
+    if (sortBy === key) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(key);
+      setSortDirection("asc");
+    }
   };
   
   // Filter students based on search term
@@ -38,6 +50,28 @@ const StudentList = ({
     student.studentId.includes(searchTerm) ||
     student.class.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Sort students
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    if (sortBy === "lastName") {
+      return sortDirection === "asc" 
+        ? a.lastName.localeCompare(b.lastName) 
+        : b.lastName.localeCompare(a.lastName);
+    } else if (sortBy === "firstName") {
+      return sortDirection === "asc" 
+        ? a.firstName.localeCompare(b.firstName) 
+        : b.firstName.localeCompare(a.firstName);
+    } else if (sortBy === "class") {
+      return sortDirection === "asc" 
+        ? a.class.localeCompare(b.class) 
+        : b.class.localeCompare(a.class);
+    } else if (sortBy === "studentId") {
+      return sortDirection === "asc" 
+        ? a.studentId.localeCompare(b.studentId) 
+        : b.studentId.localeCompare(a.studentId);
+    }
+    return 0;
+  });
 
   // Export student list as CSV
   const exportToCSV = () => {
@@ -104,16 +138,49 @@ const StudentList = ({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Student ID</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Class</TableHead>
+              <TableHead>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => handleSort("studentId")} 
+                  className="p-0 h-auto font-semibold flex items-center"
+                >
+                  Student ID
+                  {sortBy === "studentId" && (
+                    <ArrowUpDown className="ml-1 h-3 w-3" />
+                  )}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => handleSort("lastName")} 
+                  className="p-0 h-auto font-semibold flex items-center"
+                >
+                  Name
+                  {sortBy === "lastName" && (
+                    <ArrowUpDown className="ml-1 h-3 w-3" />
+                  )}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => handleSort("class")} 
+                  className="p-0 h-auto font-semibold flex items-center"
+                >
+                  Class
+                  {sortBy === "class" && (
+                    <ArrowUpDown className="ml-1 h-3 w-3" />
+                  )}
+                </Button>
+              </TableHead>
               {onRecordAttendance && <TableHead>Attendance</TableHead>}
               {onDeleteStudent && <TableHead className="w-16">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredStudents.length > 0 ? (
-              filteredStudents.map((student) => {
+            {sortedStudents.length > 0 ? (
+              sortedStudents.map((student) => {
                 const status = getAttendanceStatus(student.id);
                 
                 return (
