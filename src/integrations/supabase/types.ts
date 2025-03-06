@@ -53,6 +53,7 @@ export type Database = {
           contact_phone: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           email: string | null
           first_name: string
           grade_level: number
@@ -65,6 +66,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           email?: string | null
           first_name: string
           grade_level: number
@@ -77,6 +79,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           email?: string | null
           first_name?: string
           grade_level?: number
