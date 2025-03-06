@@ -1,4 +1,3 @@
-
 import MainLayout from "@/components/layout/MainLayout";
 import StudentList from "@/components/attendance/StudentList";
 import RecycleBin from "@/components/students/RecycleBin";
@@ -110,6 +109,7 @@ const Students = () => {
     mutationFn: (studentId: string) => deleteStudent(studentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deleted-students'] });
+      queryClient.invalidateQueries({ queryKey: ['students-dashboard'] });
       toast({
         title: "Student permanently deleted",
         description: "The student has been permanently removed from the system.",

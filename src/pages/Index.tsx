@@ -2,11 +2,12 @@
 import React, { useState } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import StatCard from "@/components/dashboard/StatCard";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import StudentList from "@/components/attendance/StudentList";
-import { Calendar, Check, Users, XCircle, Percent } from "lucide-react";
+import { Calendar, Check, Users, XCircle, Percent, RefreshCw } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
 import { 
   getTotalAbsences, 
   getTotalAttendanceByClass, 
@@ -21,12 +22,18 @@ const formatDate = (date: Date): string => {
 
 const Index = () => {
   const [currentDate] = useState(new Date());
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fetch all students
+  // Fetch all active students (not deleted)
   const { data: students = [], isLoading: isLoadingStudents } = useQuery({
-    queryKey: ['students'],
+    queryKey: ['students-dashboard'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('students').select('*');
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .is('deleted_at', null); // Only fetch active students
+      
       if (error) throw error;
       
       // Transform the data to match our Student type
@@ -38,7 +45,8 @@ const Index = () => {
         gradeLevel: student.grade_level,
         studentId: student.student_id,
         email: student.email,
-        contactPhone: student.contact_phone
+        contactPhone: student.contact_phone,
+        deletedAt: student.deleted_at
       })) as Student[];
     },
     meta: {
@@ -113,41 +121,77 @@ const Index = () => {
     }
   });
 
+  // Refresh all data
+  const refreshData = async () => {
+    setIsRefreshing(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['students-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
+      await queryClient.invalidateQueries({ queryKey: ['class-summaries'] });
+      
+      toast({
+        title: "Data refreshed",
+        description: "The dashboard data has been updated.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error refreshing data",
+        description: error.message || "An error occurred while refreshing data.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const isLoading = isLoadingStudents || isLoadingAttendance || isLoadingClasses || isRefreshing;
+
   return (
     <MainLayout>
       <div className="container mx-auto py-6">
-        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <Button 
+            onClick={refreshData} 
+            variant="outline" 
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
           <StatCard
             title="Total Students"
             value={attendanceSummary?.total || 0}
             icon={<Users className="h-5 w-5" />}
-            isLoading={isLoadingStudents || isLoadingAttendance}
+            isLoading={isLoading}
           />
           <StatCard
             title="Present Today"
             value={attendanceSummary?.presentToday || 0}
             icon={<Check className="h-5 w-5" />}
-            isLoading={isLoadingStudents || isLoadingAttendance}
+            isLoading={isLoading}
           />
           <StatCard
             title="Attendance %"
             value={`${attendanceSummary?.presentPercentage || 0}%`}
             icon={<Percent className="h-5 w-5" />}
-            isLoading={isLoadingStudents || isLoadingAttendance}
+            isLoading={isLoading}
           />
           <StatCard
             title="Total Presences"
             value={attendanceSummary?.totalPresences || 0}
             icon={<Calendar className="h-5 w-5" />}
-            isLoading={isLoadingStudents || isLoadingAttendance}
+            isLoading={isLoading}
           />
           <StatCard
             title="Total Absences"
             value={attendanceSummary?.totalAbsences || 0}
             icon={<XCircle className="h-5 w-5" />}
-            isLoading={isLoadingStudents || isLoadingAttendance}
+            isLoading={isLoading}
           />
         </div>
 
@@ -165,7 +209,7 @@ const Index = () => {
                 value={classSummary.presentCount || 0}
                 icon={<Users className="h-5 w-5" />}
                 description={`${classSummary.presentCount || 0} / ${classSummary.totalStudents} Present`}
-                isLoading={isLoadingClasses}
+                isLoading={isLoading}
               />
             ))}
           </div>
@@ -174,7 +218,7 @@ const Index = () => {
         <div className="mt-8">
           <h2 className="text-2xl font-semibold mb-3">Student List</h2>
           {students.length > 0 ? (
-            <StudentList students={students} isLoading={isLoadingStudents} />
+            <StudentList students={students} isLoading={isLoading} />
           ) : (
             <p>No students found. Import students first.</p>
           )}
