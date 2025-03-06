@@ -2,11 +2,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { Student, AttendanceRecord, AttendanceSummary, ClassSummary, ImportResult } from "./types";
 
 // Student management
-export const getStudents = async (): Promise<Student[]> => {
-  const { data, error } = await supabase
+export const getStudents = async (includeDeleted = false): Promise<Student[]> => {
+  let query = supabase
     .from("students")
     .select("*")
     .order("last_name");
+  
+  // Only include non-deleted students by default
+  if (!includeDeleted) {
+    query = query.is("deleted_at", null);
+  }
+    
+  const { data, error } = await query;
     
   if (error) {
     console.error("Error fetching students:", error);
@@ -21,7 +28,33 @@ export const getStudents = async (): Promise<Student[]> => {
     gradeLevel: student.grade_level,
     studentId: student.student_id,
     email: student.email,
-    contactPhone: student.contact_phone
+    contactPhone: student.contact_phone,
+    deletedAt: student.deleted_at
+  }));
+};
+
+export const getDeletedStudents = async (): Promise<Student[]> => {
+  const { data, error } = await supabase
+    .from("students")
+    .select("*")
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+    
+  if (error) {
+    console.error("Error fetching deleted students:", error);
+    throw error;
+  }
+  
+  return data.map(student => ({
+    id: student.id,
+    firstName: student.first_name,
+    lastName: student.last_name,
+    class: student.class,
+    gradeLevel: student.grade_level,
+    studentId: student.student_id,
+    email: student.email,
+    contactPhone: student.contact_phone,
+    deletedAt: student.deleted_at
   }));
 };
 
@@ -69,8 +102,52 @@ export const clearStudents = async (): Promise<void> => {
   }
 };
 
+export const moveStudentToBin = async (studentId: string): Promise<void> => {
+  console.log("Moving student to bin with ID:", studentId);
+  
+  try {
+    // Mark the student as deleted with current timestamp
+    const { error: studentError } = await supabase
+      .from("students")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", studentId);
+      
+    if (studentError) {
+      console.error("Error moving student to bin:", studentError);
+      throw new Error(`Failed to move student to bin: ${studentError.message}`);
+    }
+    
+    console.log("Student moved to bin successfully");
+  } catch (error) {
+    console.error("Move to bin operation failed:", error);
+    throw error; // Re-throw to handle in UI
+  }
+};
+
+export const restoreStudent = async (studentId: string): Promise<void> => {
+  console.log("Restoring student with ID:", studentId);
+  
+  try {
+    // Unmark the deleted flag
+    const { error: studentError } = await supabase
+      .from("students")
+      .update({ deleted_at: null })
+      .eq("id", studentId);
+      
+    if (studentError) {
+      console.error("Error restoring student:", studentError);
+      throw new Error(`Failed to restore student: ${studentError.message}`);
+    }
+    
+    console.log("Student restored successfully");
+  } catch (error) {
+    console.error("Restore operation failed:", error);
+    throw error; // Re-throw to handle in UI
+  }
+};
+
 export const deleteStudent = async (studentId: string): Promise<void> => {
-  console.log("Deleting student with ID:", studentId);
+  console.log("Permanently deleting student with ID:", studentId);
   
   try {
     // First delete the attendance records
@@ -101,6 +178,43 @@ export const deleteStudent = async (studentId: string): Promise<void> => {
   } catch (error) {
     console.error("Delete operation failed:", error);
     throw error; // Re-throw to handle in UI
+  }
+};
+
+export const cleanupDeletedStudents = async (daysOld = 30): Promise<void> => {
+  try {
+    // Calculate the cutoff date (30 days ago by default)
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+    const cutoffDateString = cutoffDate.toISOString();
+    
+    // Get students to delete
+    const { data: studentsToDelete, error: fetchError } = await supabase
+      .from("students")
+      .select("id")
+      .lt("deleted_at", cutoffDateString);
+      
+    if (fetchError) {
+      console.error("Error fetching old deleted students:", fetchError);
+      throw fetchError;
+    }
+    
+    if (!studentsToDelete || studentsToDelete.length === 0) {
+      console.log("No old deleted students to clean up");
+      return;
+    }
+    
+    console.log(`Found ${studentsToDelete.length} students to permanently delete`);
+    
+    // Permanently delete each student
+    for (const student of studentsToDelete) {
+      await deleteStudent(student.id);
+    }
+    
+    console.log(`Successfully cleaned up ${studentsToDelete.length} old deleted students`);
+  } catch (error) {
+    console.error("Cleanup operation failed:", error);
+    throw error;
   }
 };
 

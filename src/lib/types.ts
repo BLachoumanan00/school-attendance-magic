@@ -1,4 +1,3 @@
-
 export interface Student {
   id: string;
   firstName: string;
@@ -8,6 +7,7 @@ export interface Student {
   studentId: string;
   email?: string;
   contactPhone?: string;
+  deletedAt?: string | null;
 }
 
 export interface AttendanceRecord {
