@@ -1,3 +1,4 @@
+
 export interface Student {
   id: string;
   firstName: string;
@@ -20,11 +21,16 @@ export interface AttendanceRecord {
 
 export interface AttendanceSummary {
   date: string;
+  studentId?: string;
+  studentName?: string;
   present: number;
   absent: number;
   late: number;
   excused: number;
   total: number;
+  absenceRate?: number;
+  consecutiveAbsences?: number;
+  needsAttention?: boolean;
 }
 
 export interface ClassSummary {

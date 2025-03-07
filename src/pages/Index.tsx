@@ -1,18 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import StatCard from "@/components/dashboard/StatCard";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import StudentList from "@/components/attendance/StudentList";
+import AttendanceTrends from "@/components/attendance/AttendanceTrends";
 import { Calendar, Check, Users, XCircle, Percent, RefreshCw } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
 import { 
   getTotalAbsences, 
   getTotalAttendanceByClass, 
   getTotalPresences, 
-  getTodayAttendance 
+  getTodayAttendance,
+  checkAttendanceTrends 
 } from "@/lib/attendanceSupabase";
 import { AttendanceSummary, ClassSummary, Student } from "@/lib/types";
 
@@ -75,7 +76,7 @@ const Index = () => {
     }> => {
       if (!students.length) return { total: 0, presentToday: 0, totalPresences: 0, totalAbsences: 0, presentPercentage: 0 };
       
-      const totalStudents = students.length;
+      const totalStudents = students.filter(student => !student.deletedAt).length;
       const presentToday = await getTodayAttendance(students);
       const totalPresences = await getTotalPresences(students);
       const totalAbsences = await getTotalAbsences(students);
@@ -146,6 +147,23 @@ const Index = () => {
     enabled: students.length > 0
   });
 
+  const { data: attendanceTrends = [], isLoading: isLoadingTrends } = useQuery({
+    queryKey: ['attendance-trends'],
+    queryFn: async () => {
+      return await checkAttendanceTrends(students);
+    },
+    enabled: students.length > 0,
+    meta: {
+      onError: (error: any) => {
+        toast({
+          title: "Error loading attendance trends",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    }
+  });
+
   const refreshData = async () => {
     setIsRefreshing(true);
     try {
@@ -200,7 +218,7 @@ const Index = () => {
     return "Student List";
   };
 
-  const isLoading = isLoadingStudents || isLoadingAttendance || isLoadingClasses || isLoadingTodayAttendance || isRefreshing;
+  const isLoading = isLoadingStudents || isLoadingAttendance || isLoadingClasses || isLoadingTodayAttendance || isLoadingTrends || isRefreshing;
 
   return (
     <MainLayout>
@@ -265,7 +283,7 @@ const Index = () => {
           <h2 className="text-2xl font-semibold mb-3">Today is {formatDate(currentDate)}</h2>
         </div>
 
-        <div>
+        <div className="mb-8">
           <h2 className="text-2xl font-semibold mb-3">Attendance by Class</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {classSummaries.map((classSummary) => (
@@ -283,6 +301,14 @@ const Index = () => {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold mb-3">Attendance Trends & Alerts</h2>
+          <AttendanceTrends 
+            trendData={attendanceTrends} 
+            isLoading={isLoadingTrends} 
+          />
         </div>
 
         <div className="mt-8">
