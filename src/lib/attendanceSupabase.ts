@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Student, AttendanceSummary, ClassSummary } from "./types";
 
@@ -36,11 +35,19 @@ export const getTotalPresences = async (students: Student[]): Promise<number> =>
 export const getTodayAttendance = async (students: Student[]): Promise<number> => {
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
   
+  // Filter to get only active student IDs
+  const activeStudentIds = students
+    .filter(student => !student.deletedAt)
+    .map(student => student.id);
+  
+  if (activeStudentIds.length === 0) return 0;
+  
   const { count, error } = await supabase
     .from("attendance_records")
     .select("*", { count: "exact", head: true })
     .eq("date", today)
-    .eq("status", "present");
+    .eq("status", "present")
+    .in("student_id", activeStudentIds);
     
   if (error) {
     console.error("Error counting today's attendance:", error);
@@ -52,15 +59,17 @@ export const getTodayAttendance = async (students: Student[]): Promise<number> =
 
 // Get attendance by class
 export const getTotalAttendanceByClass = async (students: Student[]): Promise<ClassSummary[]> => {
-  // Group students by class
+  // Group students by class (only active students)
   const classes: Record<string, Student[]> = {};
   
-  students.forEach(student => {
-    if (!classes[student.class]) {
-      classes[student.class] = [];
-    }
-    classes[student.class].push(student);
-  });
+  students
+    .filter(student => !student.deletedAt)
+    .forEach(student => {
+      if (!classes[student.class]) {
+        classes[student.class] = [];
+      }
+      classes[student.class].push(student);
+    });
   
   // Calculate attendance data for each class
   const summaries: ClassSummary[] = await Promise.all(

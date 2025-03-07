@@ -8,6 +8,7 @@ import StudentList from "@/components/attendance/StudentList";
 import { Calendar, Check, Users, XCircle, Percent, RefreshCw } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { 
   getTotalAbsences, 
   getTotalAttendanceByClass, 
@@ -163,36 +164,46 @@ const Index = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
-          <StatCard
-            title="Total Students"
-            value={attendanceSummary?.total || 0}
-            icon={<Users className="h-5 w-5" />}
-            isLoading={isLoading}
-          />
-          <StatCard
-            title="Present Today"
-            value={attendanceSummary?.presentToday || 0}
-            icon={<Check className="h-5 w-5" />}
-            isLoading={isLoading}
-          />
-          <StatCard
-            title="Attendance %"
-            value={`${attendanceSummary?.presentPercentage || 0}%`}
-            icon={<Percent className="h-5 w-5" />}
-            isLoading={isLoading}
-          />
-          <StatCard
-            title="Total Presences"
-            value={attendanceSummary?.totalPresences || 0}
-            icon={<Calendar className="h-5 w-5" />}
-            isLoading={isLoading}
-          />
-          <StatCard
-            title="Total Absences"
-            value={attendanceSummary?.totalAbsences || 0}
-            icon={<XCircle className="h-5 w-5" />}
-            isLoading={isLoading}
-          />
+          <Link to="/students" className="block">
+            <StatCard
+              title="Total Students"
+              value={attendanceSummary?.total || 0}
+              icon={<Users className="h-5 w-5" />}
+              isLoading={isLoading}
+            />
+          </Link>
+          <Link to="/students" className="block">
+            <StatCard
+              title="Present Today"
+              value={attendanceSummary?.presentToday || 0}
+              icon={<Check className="h-5 w-5" />}
+              isLoading={isLoading}
+            />
+          </Link>
+          <Link to="/students" className="block">
+            <StatCard
+              title="Attendance %"
+              value={`${attendanceSummary?.presentPercentage || 0}%`}
+              icon={<Percent className="h-5 w-5" />}
+              isLoading={isLoading}
+            />
+          </Link>
+          <Link to="/students" className="block">
+            <StatCard
+              title="Total Presences"
+              value={attendanceSummary?.totalPresences || 0}
+              icon={<Calendar className="h-5 w-5" />}
+              isLoading={isLoading}
+            />
+          </Link>
+          <Link to="/students" className="block">
+            <StatCard
+              title="Total Absences"
+              value={attendanceSummary?.totalAbsences || 0}
+              icon={<XCircle className="h-5 w-5" />}
+              isLoading={isLoading}
+            />
+          </Link>
         </div>
 
         <div className="mb-6">
@@ -203,14 +214,16 @@ const Index = () => {
           <h2 className="text-2xl font-semibold mb-3">Attendance by Class</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {classSummaries.map((classSummary) => (
-              <StatCard
-                key={classSummary.className}
-                title={classSummary.className}
-                value={classSummary.presentCount || 0}
-                icon={<Users className="h-5 w-5" />}
-                description={`${classSummary.presentCount || 0} / ${classSummary.totalStudents} Present`}
-                isLoading={isLoading}
-              />
+              <Link to="/students" key={classSummary.className} className="block">
+                <StatCard
+                  key={classSummary.className}
+                  title={classSummary.className}
+                  value={classSummary.presentCount || 0}
+                  icon={<Users className="h-5 w-5" />}
+                  description={`${classSummary.presentCount || 0} / ${classSummary.totalStudents} Present`}
+                  isLoading={isLoading}
+                />
+              </Link>
             ))}
           </div>
         </div>

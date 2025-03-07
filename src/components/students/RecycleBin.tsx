@@ -4,8 +4,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Student } from "@/lib/types";
-import { Search, RotateCcw, Trash2 } from "lucide-react";
+import { Search, RotateCcw, Trash2, CheckSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface RecycleBinProps {
   students: Student[];
@@ -21,6 +22,7 @@ const RecycleBin = ({
   onDeletePermanently
 }: RecycleBinProps) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   
   // Filter students based on search term
   const filteredStudents = students.filter(student => 
@@ -29,6 +31,36 @@ const RecycleBin = ({
     student.studentId.includes(searchTerm) ||
     student.class.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleToggleStudent = (studentId: string) => {
+    if (selectedStudents.includes(studentId)) {
+      setSelectedStudents(prev => prev.filter(id => id !== studentId));
+    } else {
+      setSelectedStudents(prev => [...prev, studentId]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedStudents.length === filteredStudents.length) {
+      // If all are selected, deselect all
+      setSelectedStudents([]);
+    } else {
+      // Select all
+      setSelectedStudents(filteredStudents.map(student => student.id));
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedStudents.length === 0) return;
+    
+    // Confirm before deleting multiple students
+    if (window.confirm(`Are you sure you want to permanently delete ${selectedStudents.length} student(s)?`)) {
+      selectedStudents.forEach(studentId => {
+        onDeletePermanently(studentId);
+      });
+      setSelectedStudents([]);
+    }
+  };
 
   if (isLoading) {
     return <div>Loading deleted students...</div>;
@@ -46,12 +78,45 @@ const RecycleBin = ({
             className="pl-9 w-full"
           />
         </div>
+        
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex items-center gap-2"
+            onClick={handleSelectAll}
+          >
+            <CheckSquare className="h-4 w-4" />
+            {selectedStudents.length === filteredStudents.length 
+              ? "Deselect All" 
+              : "Select All"}
+          </Button>
+          
+          {selectedStudents.length > 0 && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="flex items-center gap-2"
+              onClick={handleDeleteSelected}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Selected ({selectedStudents.length})
+            </Button>
+          )}
+        </div>
       </div>
       
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox 
+                  checked={filteredStudents.length > 0 && selectedStudents.length === filteredStudents.length}
+                  onCheckedChange={handleSelectAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
               <TableHead>Student ID</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Class</TableHead>
@@ -63,6 +128,13 @@ const RecycleBin = ({
             {filteredStudents.length > 0 ? (
               filteredStudents.map((student) => (
                 <TableRow key={student.id} className="group transition-all-200">
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedStudents.includes(student.id)}
+                      onCheckedChange={() => handleToggleStudent(student.id)}
+                      aria-label={`Select ${student.firstName} ${student.lastName}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{student.studentId}</TableCell>
                   <TableCell>{student.lastName}, {student.firstName}</TableCell>
                   <TableCell>{student.class}</TableCell>
@@ -95,7 +167,7 @@ const RecycleBin = ({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   No deleted students found.
                 </TableCell>
               </TableRow>

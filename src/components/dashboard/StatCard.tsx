@@ -13,7 +13,7 @@ interface StatCardProps {
 
 const StatCard = ({ title, value, icon, description, className, isLoading }: StatCardProps) => {
   return (
-    <Card className={cn("overflow-hidden transition-all duration-300 hover:shadow-md", className)}>
+    <Card className={cn("overflow-hidden transition-all duration-300 hover:shadow-md cursor-pointer", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <div className="w-8 h-8 flex items-center justify-center rounded-full bg-primary/10 text-primary">
