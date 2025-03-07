@@ -1,4 +1,3 @@
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +12,8 @@ interface StudentListProps {
   attendanceRecords?: AttendanceRecord[];
   onRecordAttendance?: (studentId: string, status: AttendanceRecord['status']) => void;
   onDeleteStudent?: (studentId: string) => void;
+  filterStatus?: AttendanceRecord['status'] | null;
+  selectedClass?: string | null;
 }
 
 const StudentList = ({ 
@@ -21,7 +22,9 @@ const StudentList = ({
   date, 
   attendanceRecords = [], 
   onRecordAttendance,
-  onDeleteStudent
+  onDeleteStudent,
+  filterStatus,
+  selectedClass
 }: StudentListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("lastName");
@@ -43,13 +46,22 @@ const StudentList = ({
     }
   };
   
-  // Filter students based on search term
-  const filteredStudents = students.filter(student => 
-    student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.studentId.includes(searchTerm) ||
-    student.class.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter students based on search term, status filter, and class filter
+  const filteredStudents = students.filter(student => {
+    // Text search filter
+    const matchesSearch = student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.studentId.includes(searchTerm) ||
+      student.class.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Status filter (if applicable)
+    const matchesStatus = !filterStatus || getAttendanceStatus(student.id) === filterStatus;
+    
+    // Class filter (if applicable)
+    const matchesClass = !selectedClass || student.class === selectedClass;
+    
+    return matchesSearch && matchesStatus && matchesClass;
+  });
 
   // Sort students
   const sortedStudents = [...filteredStudents].sort((a, b) => {
@@ -73,21 +85,39 @@ const StudentList = ({
     return 0;
   });
 
-  // Export student list as CSV
+  // Export student list with attendance as CSV
   const exportToCSV = () => {
+    // Determine if we have attendance data to include
+    const includeAttendance = date && attendanceRecords.length > 0;
+    
     // Create CSV header
-    const headers = ['Student ID', 'First Name', 'Last Name', 'Class', 'Grade Level', 'Email', 'Contact Phone'];
+    let headers = ['Student ID', 'First Name', 'Last Name', 'Class', 'Grade Level', 'Email', 'Contact Phone'];
+    
+    // Add attendance column if we have attendance data
+    if (includeAttendance) {
+      headers.push(`Attendance (${date})`);
+    }
     
     // Create CSV rows
-    const csvData = filteredStudents.map(student => [
-      student.studentId,
-      student.firstName,
-      student.lastName,
-      student.class,
-      student.gradeLevel,
-      student.email || '',
-      student.contactPhone || ''
-    ]);
+    const csvData = filteredStudents.map(student => {
+      const row = [
+        student.studentId,
+        student.firstName,
+        student.lastName,
+        student.class,
+        student.gradeLevel,
+        student.email || '',
+        student.contactPhone || ''
+      ];
+      
+      // Add attendance status if available
+      if (includeAttendance) {
+        const status = getAttendanceStatus(student.id);
+        row.push(status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Not recorded');
+      }
+      
+      return row;
+    });
     
     // Combine header and rows
     const csvContent = [
@@ -100,7 +130,7 @@ const StudentList = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `students_list_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `students_list_${date || new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

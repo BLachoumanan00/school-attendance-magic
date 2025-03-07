@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import StatCard from "@/components/dashboard/StatCard";
@@ -25,8 +24,13 @@ const Index = () => {
   const [currentDate] = useState(new Date());
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<{
+    type: "status" | "class" | null;
+    value: string | null;
+  }>({ type: null, value: null });
 
-  // Fetch all active students (not deleted)
+  const today = new Date().toISOString().split('T')[0];
+
   const { data: students = [], isLoading: isLoadingStudents } = useQuery({
     queryKey: ['students-dashboard'],
     queryFn: async () => {
@@ -37,7 +41,6 @@ const Index = () => {
       
       if (error) throw error;
       
-      // Transform the data to match our Student type
       return data.map(student => ({
         id: student.id,
         firstName: student.first_name,
@@ -61,7 +64,6 @@ const Index = () => {
     }
   });
 
-  // Fetch attendance summary
   const { data: attendanceSummary, isLoading: isLoadingAttendance } = useQuery({
     queryKey: ['attendance-summary'],
     queryFn: async (): Promise<{
@@ -78,7 +80,6 @@ const Index = () => {
       const totalPresences = await getTotalPresences(students);
       const totalAbsences = await getTotalAbsences(students);
       
-      // Calculate percentage of students present today
       const presentPercentage = totalStudents > 0 
         ? Math.round((presentToday / totalStudents) * 100) 
         : 0;
@@ -103,7 +104,6 @@ const Index = () => {
     }
   });
 
-  // Fetch class summaries
   const { data: classSummaries = [], isLoading: isLoadingClasses } = useQuery({
     queryKey: ['class-summaries'],
     queryFn: async () => {
@@ -122,13 +122,39 @@ const Index = () => {
     }
   });
 
-  // Refresh all data
+  const { data: todayAttendanceRecords = [], isLoading: isLoadingTodayAttendance } = useQuery({
+    queryKey: ['today-attendance-records'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("attendance_records")
+        .select("*, students(id)")
+        .eq("date", today);
+        
+      if (error) {
+        console.error("Error fetching today's attendance records:", error);
+        throw error;
+      }
+      
+      return data.map(record => ({
+        id: record.id,
+        studentId: record.students.id,
+        date: record.date,
+        status: record.status as "present" | "absent" | "late" | "excused",
+        notes: record.notes
+      }));
+    },
+    enabled: students.length > 0
+  });
+
   const refreshData = async () => {
     setIsRefreshing(true);
     try {
       await queryClient.invalidateQueries({ queryKey: ['students-dashboard'] });
       await queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
       await queryClient.invalidateQueries({ queryKey: ['class-summaries'] });
+      await queryClient.invalidateQueries({ queryKey: ['today-attendance-records'] });
+      
+      setSelectedFilter({ type: null, value: null });
       
       toast({
         title: "Data refreshed",
@@ -145,7 +171,36 @@ const Index = () => {
     }
   };
 
-  const isLoading = isLoadingStudents || isLoadingAttendance || isLoadingClasses || isRefreshing;
+  const handleStatClick = (type: "status" | "class", value: string) => {
+    if (selectedFilter.type === type && selectedFilter.value === value) {
+      setSelectedFilter({ type: null, value: null });
+    } else {
+      setSelectedFilter({ type, value });
+    }
+  };
+
+  const getFilterTitle = () => {
+    if (!selectedFilter.type) return "Student List";
+    
+    if (selectedFilter.type === "status") {
+      switch (selectedFilter.value) {
+        case "present": return "Students Present Today";
+        case "absent": return "Students Absent Today";
+        case "late": return "Students Late Today";
+        case "excused": return "Students Excused Today";
+        case "attendance": return "Attendance Overview";
+        default: return "Student List";
+      }
+    }
+    
+    if (selectedFilter.type === "class") {
+      return `${selectedFilter.value} Class Attendance`;
+    }
+    
+    return "Student List";
+  };
+
+  const isLoading = isLoadingStudents || isLoadingAttendance || isLoadingClasses || isLoadingTodayAttendance || isRefreshing;
 
   return (
     <MainLayout>
@@ -164,46 +219,46 @@ const Index = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
-          <Link to="/students" className="block">
+          <div onClick={() => setSelectedFilter({ type: null, value: null })}>
             <StatCard
               title="Total Students"
               value={attendanceSummary?.total || 0}
               icon={<Users className="h-5 w-5" />}
               isLoading={isLoading}
             />
-          </Link>
-          <Link to="/students" className="block">
+          </div>
+          <div onClick={() => handleStatClick("status", "present")}>
             <StatCard
               title="Present Today"
               value={attendanceSummary?.presentToday || 0}
               icon={<Check className="h-5 w-5" />}
               isLoading={isLoading}
             />
-          </Link>
-          <Link to="/students" className="block">
+          </div>
+          <div onClick={() => handleStatClick("status", "attendance")}>
             <StatCard
               title="Attendance %"
               value={`${attendanceSummary?.presentPercentage || 0}%`}
               icon={<Percent className="h-5 w-5" />}
               isLoading={isLoading}
             />
-          </Link>
-          <Link to="/students" className="block">
+          </div>
+          <div onClick={() => handleStatClick("status", "present")}>
             <StatCard
               title="Total Presences"
               value={attendanceSummary?.totalPresences || 0}
               icon={<Calendar className="h-5 w-5" />}
               isLoading={isLoading}
             />
-          </Link>
-          <Link to="/students" className="block">
+          </div>
+          <div onClick={() => handleStatClick("status", "absent")}>
             <StatCard
               title="Total Absences"
               value={attendanceSummary?.totalAbsences || 0}
               icon={<XCircle className="h-5 w-5" />}
               isLoading={isLoading}
             />
-          </Link>
+          </div>
         </div>
 
         <div className="mb-6">
@@ -214,24 +269,35 @@ const Index = () => {
           <h2 className="text-2xl font-semibold mb-3">Attendance by Class</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {classSummaries.map((classSummary) => (
-              <Link to="/students" key={classSummary.className} className="block">
+              <div 
+                key={classSummary.className} 
+                onClick={() => handleStatClick("class", classSummary.className)}
+              >
                 <StatCard
-                  key={classSummary.className}
                   title={classSummary.className}
                   value={classSummary.presentCount || 0}
                   icon={<Users className="h-5 w-5" />}
                   description={`${classSummary.presentCount || 0} / ${classSummary.totalStudents} Present`}
                   isLoading={isLoading}
                 />
-              </Link>
+              </div>
             ))}
           </div>
         </div>
 
         <div className="mt-8">
-          <h2 className="text-2xl font-semibold mb-3">Student List</h2>
+          <h2 className="text-2xl font-semibold mb-3">{getFilterTitle()}</h2>
           {students.length > 0 ? (
-            <StudentList students={students} isLoading={isLoading} />
+            <StudentList 
+              students={students} 
+              isLoading={isLoading}
+              date={today}
+              attendanceRecords={todayAttendanceRecords}
+              filterStatus={selectedFilter.type === "status" && selectedFilter.value !== "attendance" ? 
+                (selectedFilter.value as "present" | "absent" | "late" | "excused" | null) : 
+                null}
+              selectedClass={selectedFilter.type === "class" ? selectedFilter.value : null}
+            />
           ) : (
             <p>No students found. Import students first.</p>
           )}

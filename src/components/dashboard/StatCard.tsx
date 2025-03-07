@@ -9,11 +9,27 @@ interface StatCardProps {
   description?: string;
   className?: string;
   isLoading?: boolean;
+  onClick?: () => void;
 }
 
-const StatCard = ({ title, value, icon, description, className, isLoading }: StatCardProps) => {
+const StatCard = ({ 
+  title, 
+  value, 
+  icon, 
+  description, 
+  className, 
+  isLoading,
+  onClick
+}: StatCardProps) => {
   return (
-    <Card className={cn("overflow-hidden transition-all duration-300 hover:shadow-md cursor-pointer", className)}>
+    <Card 
+      className={cn(
+        "overflow-hidden transition-all duration-300 hover:shadow-md", 
+        onClick ? "cursor-pointer transform hover:scale-105 hover:bg-primary/5" : "",
+        className
+      )}
+      onClick={onClick}
+    >
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <div className="w-8 h-8 flex items-center justify-center rounded-full bg-primary/10 text-primary">
