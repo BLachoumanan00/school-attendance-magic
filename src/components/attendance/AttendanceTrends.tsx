@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { AttendanceSummary } from "@/lib/types";
-import { AlertCircle, TrendingDown, AlertTriangle } from "lucide-react";
+import { AlertCircle, TrendingDown, AlertTriangle, BellRing } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface AttendanceTrendsProps {
   trendData: AttendanceSummary[];
@@ -12,6 +14,8 @@ interface AttendanceTrendsProps {
 }
 
 const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoading }) => {
+  const { toast } = useToast();
+  
   // Filter for students that need attention
   const studentsNeedingAttention = trendData.filter(summary => summary.needsAttention);
   
@@ -19,6 +23,30 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
   const sortedData = [...trendData].sort((a, b) => 
     (b.absenceRate || 0) - (a.absenceRate || 0)
   ).slice(0, 5); // Top 5 highest absence rates
+  
+  // Send notification to all students with attendance issues
+  const notifyAllStudents = () => {
+    if (studentsNeedingAttention.length === 0) return;
+    
+    console.log(`Sending notifications to ${studentsNeedingAttention.length} students with attendance issues`);
+    
+    toast({
+      title: "Notifications Sent",
+      description: `Sent attendance alerts to parents of ${studentsNeedingAttention.length} students with attendance issues.`,
+      duration: 5000,
+    });
+  };
+  
+  // Send notification to a specific student
+  const notifyStudent = (student: AttendanceSummary) => {
+    console.log(`Sending notification to ${student.studentName}`);
+    
+    toast({
+      title: "Notification Sent",
+      description: `Parents of ${student.studentName} have been alerted about attendance issues.`,
+      duration: 3000,
+    });
+  };
   
   if (isLoading) {
     return <div className="w-full p-8 text-center">Loading attendance trends...</div>;
@@ -28,19 +56,43 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
     <div className="space-y-6">
       {studentsNeedingAttention.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-lg font-medium">Attendance Alerts</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium">Attendance Alerts</h3>
+            <Button 
+              onClick={notifyAllStudents}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1 text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700"
+            >
+              <BellRing className="h-4 w-4" />
+              Notify All Parents
+            </Button>
+          </div>
           <div className="grid gap-4">
             {studentsNeedingAttention.map((summary) => (
               <Alert key={summary.studentId} variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Attendance Warning</AlertTitle>
-                <AlertDescription>
-                  {summary.consecutiveAbsences && summary.consecutiveAbsences >= 3 ? (
-                    <span>{summary.studentName} has been absent for {summary.consecutiveAbsences} consecutive days.</span>
-                  ) : (
-                    <span>{summary.studentName} has missed {summary.absenceRate?.toFixed(1)}% of classes in the last 30 days.</span>
-                  )}
-                </AlertDescription>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Attendance Warning</AlertTitle>
+                    <AlertDescription>
+                      {summary.consecutiveAbsences && summary.consecutiveAbsences >= 3 ? (
+                        <span>{summary.studentName} has been absent for {summary.consecutiveAbsences} consecutive days.</span>
+                      ) : (
+                        <span>{summary.studentName} has missed {summary.absenceRate?.toFixed(1)}% of classes in the last 30 days.</span>
+                      )}
+                    </AlertDescription>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-4 mt-1 h-8 px-2 text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700"
+                    onClick={() => notifyStudent(summary)}
+                  >
+                    <BellRing className="h-4 w-4 mr-1" />
+                    Notify
+                  </Button>
+                </div>
               </Alert>
             ))}
           </div>
@@ -63,6 +115,7 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
                   <TableHead>Absence Rate</TableHead>
                   <TableHead>Consecutive Absences</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -79,6 +132,19 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
                         </span>
                       ) : (
                         <span className="text-muted-foreground">Normal</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {summary.needsAttention && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-2 text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700"
+                          onClick={() => notifyStudent(summary)}
+                        >
+                          <BellRing className="h-4 w-4 mr-1" />
+                          Notify
+                        </Button>
                       )}
                     </TableCell>
                   </TableRow>

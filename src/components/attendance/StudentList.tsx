@@ -1,9 +1,11 @@
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Student, AttendanceRecord } from "@/lib/types";
 import { useState } from "react";
-import { CheckCircle, XCircle, Clock, AlertCircle, Search, Download, Trash2, ArrowUpDown } from "lucide-react";
+import { CheckCircle, XCircle, Clock, AlertCircle, Search, Download, Trash2, ArrowUpDown, BellRing } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface StudentListProps {
   students: Student[];
@@ -29,11 +31,25 @@ const StudentList = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("lastName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const { toast } = useToast();
   
   // Get attendance status for a student
   const getAttendanceStatus = (studentId: string): AttendanceRecord['status'] | null => {
     const record = attendanceRecords.find(r => r.studentId === studentId);
     return record ? record.status : null;
+  };
+  
+  // Send absence notification
+  const sendAbsenceNotification = (student: Student) => {
+    // In a real implementation, this would connect to an SMS, email or push notification service
+    console.log(`Sending absence notification for student: ${student.firstName} ${student.lastName}`);
+    
+    // Show toast notification for UI feedback
+    toast({
+      title: "Absence Notification Sent",
+      description: `Parents of ${student.firstName} ${student.lastName} have been notified of their absence.`,
+      duration: 3000,
+    });
   };
   
   // Handle sort
@@ -204,8 +220,9 @@ const StudentList = ({
                   )}
                 </Button>
               </TableHead>
+              <TableHead>Actions</TableHead>
               {onRecordAttendance && <TableHead>Attendance</TableHead>}
-              {onDeleteStudent && <TableHead className="w-16">Actions</TableHead>}
+              {onDeleteStudent && <TableHead className="w-16">Delete</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -218,6 +235,21 @@ const StudentList = ({
                     <TableCell className="font-medium">{student.studentId}</TableCell>
                     <TableCell>{student.lastName}, {student.firstName}</TableCell>
                     <TableCell>{student.class}</TableCell>
+                    <TableCell>
+                      {/* Only show notification button if student is absent */}
+                      {status === 'absent' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-2 text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700"
+                          onClick={() => sendAbsenceNotification(student)}
+                          title="Send Absence Notification"
+                        >
+                          <BellRing className="h-4 w-4 mr-1" />
+                          Notify
+                        </Button>
+                      )}
+                    </TableCell>
                     {onRecordAttendance && (
                       <TableCell>
                         <div className="flex space-x-1">
@@ -278,7 +310,7 @@ const StudentList = ({
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={onRecordAttendance && onDeleteStudent ? 5 : (onRecordAttendance || onDeleteStudent ? 4 : 3)} className="h-24 text-center">
+                <TableCell colSpan={onRecordAttendance && onDeleteStudent ? 6 : (onRecordAttendance || onDeleteStudent ? 5 : 4)} className="h-24 text-center">
                   No students found.
                 </TableCell>
               </TableRow>
