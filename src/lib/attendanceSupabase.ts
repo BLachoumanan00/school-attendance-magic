@@ -1,12 +1,21 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Student, AttendanceSummary, ClassSummary } from "./types";
 
 // Get total absences for all students
 export const getTotalAbsences = async (students: Student[]): Promise<number> => {
+  // Filter to get only active student IDs
+  const activeStudentIds = students
+    .filter(student => !student.deletedAt)
+    .map(student => student.id);
+  
+  if (activeStudentIds.length === 0) return 0;
+  
   const { count, error } = await supabase
     .from("attendance_records")
     .select("*", { count: "exact", head: true })
-    .eq("status", "absent");
+    .eq("status", "absent")
+    .in("student_id", activeStudentIds);
     
   if (error) {
     console.error("Error counting absences:", error);
@@ -18,10 +27,18 @@ export const getTotalAbsences = async (students: Student[]): Promise<number> => 
 
 // Get total presences for all students
 export const getTotalPresences = async (students: Student[]): Promise<number> => {
+  // Filter to get only active student IDs
+  const activeStudentIds = students
+    .filter(student => !student.deletedAt)
+    .map(student => student.id);
+  
+  if (activeStudentIds.length === 0) return 0;
+  
   const { count, error } = await supabase
     .from("attendance_records")
     .select("*", { count: "exact", head: true })
-    .eq("status", "present");
+    .eq("status", "present")
+    .in("student_id", activeStudentIds);
     
   if (error) {
     console.error("Error counting presences:", error);
