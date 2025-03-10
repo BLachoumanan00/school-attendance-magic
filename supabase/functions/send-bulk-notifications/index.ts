@@ -19,6 +19,8 @@ interface RequestBody {
 
 // Helper function to format Mauritian phone numbers to international format
 function formatMauritianPhoneNumber(phoneNumber: string): string {
+  if (!phoneNumber) return "";
+  
   // Remove all non-digit characters
   const digitsOnly = phoneNumber.replace(/\D/g, "");
   
@@ -32,15 +34,22 @@ function formatMauritianPhoneNumber(phoneNumber: string): string {
 }
 
 serve(async (req) => {
+  console.log("Processing bulk notifications request");
+  
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
+    console.log("Handling CORS preflight request");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { studentIds, date, notificationType = "sms", message } = await req.json() as RequestBody;
+    const requestBody = await req.json();
+    console.log("Request body:", JSON.stringify(requestBody));
+    
+    const { studentIds, date, notificationType = "sms", message } = requestBody as RequestBody;
     
     if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      console.error("No student IDs provided");
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -54,9 +63,11 @@ serve(async (req) => {
     }
     
     // Create Supabase client
+    console.log("Creating Supabase client");
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Fetch students details
+    console.log(`Fetching details for ${studentIds.length} students`);
     const { data: students, error: studentsError } = await supabase
       .from("students")
       .select("*")
@@ -78,6 +89,8 @@ serve(async (req) => {
       );
     }
     
+    console.log(`Found ${students?.length || 0} students of ${studentIds.length} requested`);
+    
     // Results to track successful and failed notifications
     const results = {
       success: 0,
@@ -87,72 +100,80 @@ serve(async (req) => {
     };
     
     // Process each student
-    for (const student of students) {
-      if (!student.contact_phone) {
-        results.noPhone++;
+    if (students) {
+      for (const student of students) {
+        if (!student.contact_phone) {
+          console.log(`Student ${student.id} has no contact phone`);
+          results.noPhone++;
+          results.details.push({
+            studentId: student.id,
+            success: false,
+            reason: "No contact phone number"
+          });
+          continue;
+        }
+        
+        // Format the phone number for Mauritian standards
+        const phoneNumber = formatMauritianPhoneNumber(student.contact_phone);
+        console.log(`Formatted phone number for student ${student.id}: ${phoneNumber}`);
+        
+        // Format the student's name
+        const studentName = `${student.first_name} ${student.last_name}`;
+        
+        // Default notification message
+        const defaultMessage = `This is an automated notification from the school attendance system. ${studentName} was marked absent on ${date}. Please contact the school for more information.`;
+        
+        // Use custom message if provided, otherwise use default
+        const notificationMessage = message || defaultMessage;
+        
+        // Log the notification attempt
+        console.log(`Sending ${notificationType} notification to ${phoneNumber} for student ${student.id}`);
+        
+        // Simulate sending notification (in a real implementation, integrate with SMS/WhatsApp API)
+        let success = true; // For simulation purposes
+        
+        try {
+          // Log the notification for record-keeping
+          const { error: logError } = await supabase
+            .from("attendance_notifications")
+            .insert({
+              student_id: student.id,
+              notification_type: notificationType,
+              notification_date: new Date().toISOString(),
+              message: notificationMessage,
+              success: success,
+            });
+            
+          if (logError) {
+            console.warn(`Could not log notification for student ${student.id}:`, logError);
+          } else {
+            console.log(`Notification record created for student ${student.id}`);
+          }
+        } catch (logErr) {
+          console.warn(`Error logging notification for student ${student.id}:`, logErr);
+        }
+        
+        if (success) {
+          results.success++;
+        } else {
+          results.failed++;
+        }
+        
         results.details.push({
           studentId: student.id,
-          success: false,
-          reason: "No contact phone number"
+          studentName,
+          phoneNumber,
+          success,
         });
-        continue;
       }
-      
-      // Format the phone number for Mauritian standards
-      const phoneNumber = formatMauritianPhoneNumber(student.contact_phone);
-      
-      // Format the student's name
-      const studentName = `${student.first_name} ${student.last_name}`;
-      
-      // Default notification message
-      const defaultMessage = `This is an automated notification from the school attendance system. ${studentName} was marked absent on ${date}. Please contact the school for more information.`;
-      
-      // Use custom message if provided, otherwise use default
-      const notificationMessage = message || defaultMessage;
-      
-      // Log the notification attempt
-      console.log(`Sending ${notificationType} notification to ${phoneNumber} for student ${student.id}`);
-      
-      // Simulate sending notification (in a real implementation, integrate with SMS/WhatsApp API)
-      let success = true; // For simulation purposes
-      
-      try {
-        // Log the notification for record-keeping
-        const { error: logError } = await supabase
-          .from("attendance_notifications")
-          .insert({
-            student_id: student.id,
-            notification_type: notificationType,
-            notification_date: new Date().toISOString(),
-            message: notificationMessage,
-            success: success,
-          });
-          
-        if (logError) {
-          console.warn(`Could not log notification for student ${student.id}:`, logError);
-        }
-      } catch (logErr) {
-        console.warn(`Error logging notification for student ${student.id}:`, logErr);
-      }
-      
-      if (success) {
-        results.success++;
-      } else {
-        results.failed++;
-      }
-      
-      results.details.push({
-        studentId: student.id,
-        studentName,
-        phoneNumber,
-        success,
-      });
     }
+    
+    console.log(`Processed ${results.success + results.failed + results.noPhone} notifications`);
     
     return new Response(
       JSON.stringify({ 
         success: results.success > 0,
-        message: `Processed ${students.length} notifications: ${results.success} sent successfully, ${results.failed} failed, ${results.noPhone} had no phone number.`,
+        message: `Processed ${students?.length || 0} notifications: ${results.success} sent successfully, ${results.failed} failed, ${results.noPhone} had no phone number.`,
         details: results.details
       }),
       { 

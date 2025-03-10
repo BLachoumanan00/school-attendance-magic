@@ -24,6 +24,8 @@ interface RequestBody {
 
 // Helper function to format Mauritian phone numbers to international format
 function formatMauritianPhoneNumber(phoneNumber: string): string {
+  if (!phoneNumber) return "";
+  
   // Remove all non-digit characters
   const digitsOnly = phoneNumber.replace(/\D/g, "");
   
@@ -37,15 +39,22 @@ function formatMauritianPhoneNumber(phoneNumber: string): string {
 }
 
 serve(async (req) => {
+  console.log("Processing notification request");
+  
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
+    console.log("Handling CORS preflight request");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { studentId, date, notificationType = "sms", message } = await req.json() as RequestBody;
+    const requestBody = await req.json();
+    console.log("Request body:", JSON.stringify(requestBody));
+    
+    const { studentId, date, notificationType = "sms", message } = requestBody as RequestBody;
     
     if (!studentId || !date) {
+      console.error("Missing required parameters: studentId or date");
       return new Response(
         JSON.stringify({
           success: false,
@@ -59,9 +68,11 @@ serve(async (req) => {
     }
     
     // Create Supabase client
+    console.log("Creating Supabase client");
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Fetch student details
+    console.log(`Fetching student details for ID: ${studentId}`);
     const { data: student, error: studentError } = await supabase
       .from("students")
       .select("*")
@@ -84,6 +95,7 @@ serve(async (req) => {
     }
     
     if (!student) {
+      console.error("Student not found");
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -97,6 +109,7 @@ serve(async (req) => {
     }
     
     if (!student.contact_phone) {
+      console.error("Student has no contact phone number");
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -111,6 +124,7 @@ serve(async (req) => {
     
     // Format the phone number for Mauritian standards
     const phoneNumber = formatMauritianPhoneNumber(student.contact_phone);
+    console.log(`Formatted phone number: ${phoneNumber}`);
     
     // Format the student's name
     const studentName = `${student.first_name} ${student.last_name}`;
@@ -164,8 +178,11 @@ serve(async (req) => {
       responseMessage = `${notificationType} notification sent successfully (simulated)`;
     }
     
+    console.log(responseMessage);
+    
     // Log the notification for record-keeping
     try {
+      console.log("Logging notification record to database");
       const { error: logError } = await supabase
         .from("attendance_notifications")
         .insert({
@@ -178,6 +195,8 @@ serve(async (req) => {
         
       if (logError) {
         console.warn("Could not log notification:", logError);
+      } else {
+        console.log("Notification record created successfully");
       }
     } catch (logErr) {
       console.warn("Error logging notification:", logErr);
@@ -189,7 +208,7 @@ serve(async (req) => {
         message: responseMessage,
         channel: notificationType,
         studentId,
-        phoneNumber // Include the formatted phone number in the response
+        phoneNumber 
       }),
       { 
         status: 200, 

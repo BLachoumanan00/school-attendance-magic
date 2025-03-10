@@ -7,6 +7,7 @@ import { Student } from "@/lib/types";
 import { Search, RotateCcw, Trash2, CheckSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/components/ui/use-toast";
 
 interface RecycleBinProps {
   students: Student[];
@@ -23,6 +24,8 @@ const RecycleBin = ({
 }: RecycleBinProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [deletingInProgress, setDeletingInProgress] = useState<{[key: string]: boolean}>({});
+  const { toast } = useToast();
   
   // Filter students based on search term
   const filteredStudents = students.filter(student => 
@@ -55,10 +58,51 @@ const RecycleBin = ({
     
     // Confirm before deleting multiple students
     if (window.confirm(`Are you sure you want to permanently delete ${selectedStudents.length} student(s)?`)) {
-      selectedStudents.forEach(studentId => {
-        onDeletePermanently(studentId);
+      const deletePromises = selectedStudents.map(async (studentId) => {
+        try {
+          setDeletingInProgress(prev => ({ ...prev, [studentId]: true }));
+          await onDeletePermanently(studentId);
+          return true;
+        } catch (error) {
+          console.error(`Error deleting student ${studentId}:`, error);
+          toast({
+            title: "Error",
+            description: `Failed to delete student: ${error.message || "Unknown error"}`,
+            variant: "destructive",
+          });
+          return false;
+        } finally {
+          setDeletingInProgress(prev => ({ ...prev, [studentId]: false }));
+        }
       });
-      setSelectedStudents([]);
+      
+      Promise.all(deletePromises)
+        .then(results => {
+          const successCount = results.filter(Boolean).length;
+          if (successCount > 0) {
+            toast({
+              title: "Success",
+              description: `${successCount} student(s) permanently deleted.`,
+            });
+          }
+          setSelectedStudents([]);
+        });
+    }
+  };
+
+  const handleSingleDelete = async (studentId: string) => {
+    try {
+      setDeletingInProgress(prev => ({ ...prev, [studentId]: true }));
+      await onDeletePermanently(studentId);
+    } catch (error) {
+      console.error(`Error deleting student ${studentId}:`, error);
+      toast({
+        title: "Error",
+        description: `Failed to delete student: ${error.message || "Unknown error"}`,
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingInProgress(prev => ({ ...prev, [studentId]: false }));
     }
   };
 
@@ -98,9 +142,12 @@ const RecycleBin = ({
               variant="destructive"
               className="flex items-center gap-2"
               onClick={handleDeleteSelected}
+              disabled={Object.values(deletingInProgress).some(Boolean)}
             >
               <Trash2 className="h-4 w-4" />
-              Delete Selected ({selectedStudents.length})
+              {Object.values(deletingInProgress).some(Boolean)
+                ? "Deleting..."
+                : `Delete Selected (${selectedStudents.length})`}
             </Button>
           )}
         </div>
@@ -133,6 +180,7 @@ const RecycleBin = ({
                       checked={selectedStudents.includes(student.id)}
                       onCheckedChange={() => handleToggleStudent(student.id)}
                       aria-label={`Select ${student.firstName} ${student.lastName}`}
+                      disabled={deletingInProgress[student.id]}
                     />
                   </TableCell>
                   <TableCell className="font-medium">{student.studentId}</TableCell>
@@ -149,6 +197,7 @@ const RecycleBin = ({
                         className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
                         onClick={() => onRestoreStudent(student.id)}
                         title="Restore Student"
+                        disabled={deletingInProgress[student.id]}
                       >
                         <RotateCcw className="h-4 w-4" />
                       </Button>
@@ -156,10 +205,15 @@ const RecycleBin = ({
                         size="sm"
                         variant="outline"
                         className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => onDeletePermanently(student.id)}
+                        onClick={() => handleSingleDelete(student.id)}
                         title="Delete Permanently"
+                        disabled={deletingInProgress[student.id]}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {deletingInProgress[student.id] ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                   </TableCell>
