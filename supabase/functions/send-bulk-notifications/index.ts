@@ -17,6 +17,20 @@ interface RequestBody {
   message?: string;
 }
 
+// Helper function to format Mauritian phone numbers to international format
+function formatMauritianPhoneNumber(phoneNumber: string): string {
+  // Remove all non-digit characters
+  const digitsOnly = phoneNumber.replace(/\D/g, "");
+  
+  // Check if the number already has the country code
+  if (digitsOnly.startsWith("230")) {
+    return `+${digitsOnly}`;
+  }
+  
+  // Add Mauritius country code if it's missing
+  return `+230${digitsOnly}`;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -54,7 +68,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "Failed to fetch students details" 
+          message: "Failed to fetch students details",
+          error: studentsError
         }),
         { 
           status: 400, 
@@ -83,8 +98,8 @@ serve(async (req) => {
         continue;
       }
       
-      // Format the phone number (remove spaces, dashes, etc.)
-      const phoneNumber = student.contact_phone.replace(/\D/g, "");
+      // Format the phone number for Mauritian standards
+      const phoneNumber = formatMauritianPhoneNumber(student.contact_phone);
       
       // Format the student's name
       const studentName = `${student.first_name} ${student.last_name}`;
@@ -101,19 +116,23 @@ serve(async (req) => {
       // Simulate sending notification (in a real implementation, integrate with SMS/WhatsApp API)
       let success = true; // For simulation purposes
       
-      // Log the notification for record-keeping
-      const { error: logError } = await supabase
-        .from("attendance_notifications")
-        .insert({
-          student_id: student.id,
-          notification_type: notificationType,
-          notification_date: new Date().toISOString(),
-          message: notificationMessage,
-          success: success,
-        });
-        
-      if (logError) {
-        console.warn(`Could not log notification for student ${student.id}:`, logError);
+      try {
+        // Log the notification for record-keeping
+        const { error: logError } = await supabase
+          .from("attendance_notifications")
+          .insert({
+            student_id: student.id,
+            notification_type: notificationType,
+            notification_date: new Date().toISOString(),
+            message: notificationMessage,
+            success: success,
+          });
+          
+        if (logError) {
+          console.warn(`Could not log notification for student ${student.id}:`, logError);
+        }
+      } catch (logErr) {
+        console.warn(`Error logging notification for student ${student.id}:`, logErr);
       }
       
       if (success) {
@@ -125,6 +144,7 @@ serve(async (req) => {
       results.details.push({
         studentId: student.id,
         studentName,
+        phoneNumber,
         success,
       });
     }
@@ -147,7 +167,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        message: error.message || "An unknown error occurred" 
+        message: error.message || "An unknown error occurred",
+        stack: error.stack || "No stack trace available"
       }),
       { 
         status: 500, 

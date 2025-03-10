@@ -22,6 +22,20 @@ interface RequestBody {
   message?: string;
 }
 
+// Helper function to format Mauritian phone numbers to international format
+function formatMauritianPhoneNumber(phoneNumber: string): string {
+  // Remove all non-digit characters
+  const digitsOnly = phoneNumber.replace(/\D/g, "");
+  
+  // Check if the number already has the country code
+  if (digitsOnly.startsWith("230")) {
+    return `+${digitsOnly}`;
+  }
+  
+  // Add Mauritius country code if it's missing
+  return `+230${digitsOnly}`;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -59,10 +73,24 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "Failed to fetch student details" 
+          message: "Failed to fetch student details",
+          error: studentError
         }),
         { 
           status: 400, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        }
+      );
+    }
+    
+    if (!student) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: "Student not found" 
+        }),
+        { 
+          status: 404, 
           headers: { ...corsHeaders, "Content-Type": "application/json" } 
         }
       );
@@ -81,8 +109,8 @@ serve(async (req) => {
       );
     }
     
-    // Format the phone number (remove spaces, dashes, etc.)
-    const phoneNumber = student.contact_phone.replace(/\D/g, "");
+    // Format the phone number for Mauritian standards
+    const phoneNumber = formatMauritianPhoneNumber(student.contact_phone);
     
     // Format the student's name
     const studentName = `${student.first_name} ${student.last_name}`;
@@ -124,12 +152,12 @@ serve(async (req) => {
       
       // For now, simulate a successful response
       success = true;
-      responseMessage = "SMS notification sent successfully (simulated)";
+      responseMessage = `SMS notification sent successfully (simulated) to ${phoneNumber}`;
     } else if (notificationType === "whatsapp") {
       // For WhatsApp, you would integrate with the WhatsApp Business API
       // This is just a simulation
       success = true;
-      responseMessage = "WhatsApp notification sent successfully (simulated)";
+      responseMessage = `WhatsApp notification sent successfully (simulated) to ${phoneNumber}`;
     } else {
       // Email fallback or other notification types
       success = true;
@@ -137,20 +165,22 @@ serve(async (req) => {
     }
     
     // Log the notification for record-keeping
-    const { error: logError } = await supabase
-      .from("attendance_notifications")
-      .insert({
-        student_id: studentId,
-        notification_type: notificationType,
-        notification_date: new Date().toISOString(),
-        message: notificationMessage,
-        success: success,
-      })
-      .select()
-      .single();
-      
-    if (logError) {
-      console.warn("Could not log notification:", logError);
+    try {
+      const { error: logError } = await supabase
+        .from("attendance_notifications")
+        .insert({
+          student_id: studentId,
+          notification_type: notificationType,
+          notification_date: new Date().toISOString(),
+          message: notificationMessage,
+          success: success,
+        });
+        
+      if (logError) {
+        console.warn("Could not log notification:", logError);
+      }
+    } catch (logErr) {
+      console.warn("Error logging notification:", logErr);
     }
     
     return new Response(
@@ -158,7 +188,8 @@ serve(async (req) => {
         success, 
         message: responseMessage,
         channel: notificationType,
-        studentId
+        studentId,
+        phoneNumber // Include the formatted phone number in the response
       }),
       { 
         status: 200, 
@@ -172,7 +203,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        message: error.message || "An unknown error occurred" 
+        message: error.message || "An unknown error occurred",
+        stack: error.stack || "No stack trace available"
       }),
       { 
         status: 500, 
