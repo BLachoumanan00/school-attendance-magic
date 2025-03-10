@@ -31,6 +31,19 @@ serve(async (req) => {
   try {
     const { studentId, date, notificationType = "sms", message } = await req.json() as RequestBody;
     
+    if (!studentId || !date) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "Student ID and date are required"
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+    
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
@@ -84,14 +97,13 @@ serve(async (req) => {
     console.log(`Sending ${notificationType} notification to ${phoneNumber} for student ${studentId}`);
     
     // Simulate sending notification
-    let success = false;
+    let success = true; // For simulation purposes
     let responseMessage = "";
     
     // In a real implementation, you would use the Twilio API or another service
     if (notificationType === "sms" && TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
       // This is where you would integrate with Twilio for SMS
-      // Example Twilio API call:
-      /*
+      /* 
       const twilioResponse = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`, {
         method: "POST",
         headers: {
