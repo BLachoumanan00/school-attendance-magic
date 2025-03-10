@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.3";
 
@@ -39,10 +40,27 @@ serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     console.log("Handling CORS preflight request");
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      headers: corsHeaders,
+      status: 200
+    });
   }
 
   try {
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Missing Supabase credentials");
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "Server configuration error: Missing Supabase credentials"
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+    
     const requestBody = await req.json();
     console.log("Request body:", JSON.stringify(requestBody));
     
@@ -146,11 +164,13 @@ serve(async (req) => {
             
           if (logError) {
             console.warn(`Could not log notification for student ${student.id}:`, logError);
+            // Don't fail the entire request if just the logging fails
           } else {
             console.log(`Notification record created for student ${student.id}`);
           }
         } catch (logErr) {
           console.warn(`Error logging notification for student ${student.id}:`, logErr);
+          // Don't fail the entire request if just the logging fails
         }
         
         if (success) {
