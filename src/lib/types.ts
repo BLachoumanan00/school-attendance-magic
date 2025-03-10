@@ -9,6 +9,7 @@ export interface Student {
   email?: string;
   contactPhone?: string;
   deletedAt?: string | null;
+  notificationPreference?: 'sms' | 'whatsapp' | 'email';
 }
 
 export interface AttendanceRecord {
@@ -45,4 +46,11 @@ export interface ImportResult {
   message: string;
   data?: Student[];
   errors?: string[];
+}
+
+export interface NotificationResult {
+  success: boolean;
+  message: string;
+  channel?: 'sms' | 'whatsapp' | 'email';
+  studentId?: string;
 }

@@ -1,1 +1,8 @@
+
 project_id = "aywxtonoyuyhpkldkzhc"
+[api]
+enabled_apis = ["rest", "graphql", "realtime", "storage", "edge-functions"]
+[functions.send-absence-notification]
+verify_jwt = false
+[functions.send-bulk-notifications]
+verify_jwt = false

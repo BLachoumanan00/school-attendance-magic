@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Student, AttendanceRecord } from "@/lib/types";
 import { useState } from "react";
-import { CheckCircle, XCircle, Clock, AlertCircle, Search, Download, Trash2, ArrowUpDown, BellRing } from "lucide-react";
+import { CheckCircle, XCircle, Clock, AlertCircle, Search, Download, Trash2, ArrowUpDown, BellRing, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface StudentListProps {
   students: Student[];
@@ -31,6 +32,7 @@ const StudentList = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("lastName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [notificationInProgress, setNotificationInProgress] = useState<{[key: string]: boolean}>({});
   const { toast } = useToast();
   
   // Get attendance status for a student
@@ -39,17 +41,56 @@ const StudentList = ({
     return record ? record.status : null;
   };
   
-  // Send absence notification
-  const sendAbsenceNotification = (student: Student) => {
-    // In a real implementation, this would connect to an SMS, email or push notification service
-    console.log(`Sending absence notification for student: ${student.firstName} ${student.lastName}`);
+  // Send absence notification via SMS/WhatsApp
+  const sendAbsenceNotification = async (student: Student) => {
+    if (!student.contactPhone) {
+      toast({
+        title: "No Contact Number",
+        description: `${student.firstName} ${student.lastName} has no contact phone number registered.`,
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
     
-    // Show toast notification for UI feedback
-    toast({
-      title: "Absence Notification Sent",
-      description: `Parents of ${student.firstName} ${student.lastName} have been notified of their absence.`,
-      duration: 3000,
-    });
+    // Set notification in progress
+    setNotificationInProgress(prev => ({ ...prev, [student.id]: true }));
+    
+    try {
+      // Call the Edge Function to send the notification
+      const { data, error } = await supabase.functions.invoke('send-absence-notification', {
+        body: {
+          studentId: student.id,
+          date: date || new Date().toISOString().split('T')[0],
+          notificationType: student.notificationPreference || 'sms'
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      // Show success toast
+      toast({
+        title: "Notification Sent",
+        description: `Parents of ${student.firstName} ${student.lastName} have been notified of their absence via ${data.channel || 'SMS'}.`,
+        duration: 3000,
+      });
+      
+      console.log("Notification sent:", data);
+    } catch (error) {
+      console.error("Failed to send notification:", error);
+      
+      toast({
+        title: "Notification Failed",
+        description: `Failed to send notification to parents of ${student.firstName} ${student.lastName}: ${error.message}`,
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      // Clear notification in progress
+      setNotificationInProgress(prev => ({ ...prev, [student.id]: false }));
+    }
   };
   
   // Handle sort
@@ -220,6 +261,7 @@ const StudentList = ({
                   )}
                 </Button>
               </TableHead>
+              <TableHead>Contact</TableHead>
               <TableHead>Actions</TableHead>
               {onRecordAttendance && <TableHead>Attendance</TableHead>}
               {onDeleteStudent && <TableHead className="w-16">Delete</TableHead>}
@@ -236,6 +278,16 @@ const StudentList = ({
                     <TableCell>{student.lastName}, {student.firstName}</TableCell>
                     <TableCell>{student.class}</TableCell>
                     <TableCell>
+                      {student.contactPhone ? (
+                        <div className="flex items-center gap-1 text-sm">
+                          <Phone className="h-3 w-3" />
+                          {student.contactPhone}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No contact</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       {/* Only show notification button if student is absent */}
                       {status === 'absent' && (
                         <Button
@@ -243,10 +295,19 @@ const StudentList = ({
                           variant="outline"
                           className="h-8 px-2 text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700"
                           onClick={() => sendAbsenceNotification(student)}
-                          title="Send Absence Notification"
+                          disabled={notificationInProgress[student.id]}
+                          title={student.contactPhone ? "Send Absence Notification" : "No contact phone number"}
                         >
-                          <BellRing className="h-4 w-4 mr-1" />
-                          Notify
+                          {notificationInProgress[student.id] ? (
+                            <>
+                              <span className="animate-pulse mr-1">Sending...</span>
+                            </>
+                          ) : (
+                            <>
+                              <BellRing className="h-4 w-4 mr-1" />
+                              Notify
+                            </>
+                          )}
                         </Button>
                       )}
                     </TableCell>
@@ -310,7 +371,7 @@ const StudentList = ({
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={onRecordAttendance && onDeleteStudent ? 6 : (onRecordAttendance || onDeleteStudent ? 5 : 4)} className="h-24 text-center">
+                <TableCell colSpan={onRecordAttendance && onDeleteStudent ? 7 : (onRecordAttendance || onDeleteStudent ? 6 : 5)} className="h-24 text-center">
                   No students found.
                 </TableCell>
               </TableRow>
