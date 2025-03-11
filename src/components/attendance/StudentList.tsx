@@ -1,4 +1,3 @@
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,13 +34,11 @@ const StudentList = ({
   const [notificationInProgress, setNotificationInProgress] = useState<{[key: string]: boolean}>({});
   const { toast } = useToast();
   
-  // Get attendance status for a student
   const getAttendanceStatus = (studentId: string): AttendanceRecord['status'] | null => {
     const record = attendanceRecords.find(r => r.studentId === studentId);
     return record ? record.status : null;
   };
   
-  // Send absence notification via SMS/WhatsApp
   const sendAbsenceNotification = async (student: Student) => {
     if (!student.contactPhone) {
       toast({
@@ -53,16 +50,14 @@ const StudentList = ({
       return;
     }
     
-    // Set notification in progress
     setNotificationInProgress(prev => ({ ...prev, [student.id]: true }));
     
     try {
-      // Call the Edge Function to send the notification
       const { data, error } = await supabase.functions.invoke('send-absence-notification', {
         body: {
           studentId: student.id,
           date: date || new Date().toISOString().split('T')[0],
-          notificationType: student.notificationPreference || 'sms'
+          notificationType: 'whatsapp'
         }
       });
       
@@ -70,30 +65,27 @@ const StudentList = ({
         throw new Error(error.message);
       }
       
-      // Show success toast
       toast({
-        title: "Notification Sent",
-        description: `Parents of ${student.firstName} ${student.lastName} have been notified of their absence via ${data.channel || 'SMS'}.`,
+        title: "WhatsApp Notification Sent",
+        description: `Parents of ${student.firstName} ${student.lastName} have been notified of their absence via WhatsApp.`,
         duration: 3000,
       });
       
-      console.log("Notification sent:", data);
+      console.log("WhatsApp notification sent:", data);
     } catch (error) {
-      console.error("Failed to send notification:", error);
+      console.error("Failed to send WhatsApp notification:", error);
       
       toast({
-        title: "Notification Failed",
-        description: `Failed to send notification to parents of ${student.firstName} ${student.lastName}: ${error.message}`,
+        title: "WhatsApp Notification Failed",
+        description: `Failed to send WhatsApp notification to parents of ${student.firstName} ${student.lastName}: ${error.message}`,
         variant: "destructive",
         duration: 5000,
       });
     } finally {
-      // Clear notification in progress
       setNotificationInProgress(prev => ({ ...prev, [student.id]: false }));
     }
   };
   
-  // Handle sort
   const handleSort = (key: string) => {
     if (sortBy === key) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -103,24 +95,19 @@ const StudentList = ({
     }
   };
   
-  // Filter students based on search term, status filter, and class filter
   const filteredStudents = students.filter(student => {
-    // Text search filter
     const matchesSearch = student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.studentId.includes(searchTerm) ||
       student.class.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Status filter (if applicable)
     const matchesStatus = !filterStatus || getAttendanceStatus(student.id) === filterStatus;
     
-    // Class filter (if applicable)
     const matchesClass = !selectedClass || student.class === selectedClass;
     
     return matchesSearch && matchesStatus && matchesClass;
   });
 
-  // Sort students
   const sortedStudents = [...filteredStudents].sort((a, b) => {
     if (sortBy === "lastName") {
       return sortDirection === "asc" 
@@ -142,20 +129,15 @@ const StudentList = ({
     return 0;
   });
 
-  // Export student list with attendance as CSV
   const exportToCSV = () => {
-    // Determine if we have attendance data to include
     const includeAttendance = date && attendanceRecords.length > 0;
     
-    // Create CSV header
     let headers = ['Student ID', 'First Name', 'Last Name', 'Class', 'Grade Level', 'Email', 'Contact Phone'];
     
-    // Add attendance column if we have attendance data
     if (includeAttendance) {
       headers.push(`Attendance (${date})`);
     }
     
-    // Create CSV rows
     const csvData = filteredStudents.map(student => {
       const row = [
         student.studentId,
@@ -167,7 +149,6 @@ const StudentList = ({
         student.contactPhone || ''
       ];
       
-      // Add attendance status if available
       if (includeAttendance) {
         const status = getAttendanceStatus(student.id);
         row.push(status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Not recorded');
@@ -176,13 +157,11 @@ const StudentList = ({
       return row;
     });
     
-    // Combine header and rows
     const csvContent = [
       headers.join(','),
       ...csvData.map(row => row.join(','))
     ].join('\n');
     
-    // Create blob and download
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -288,15 +267,14 @@ const StudentList = ({
                       )}
                     </TableCell>
                     <TableCell>
-                      {/* Only show notification button if student is absent */}
                       {status === 'absent' && (
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8 px-2 text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700"
+                          className="h-8 px-2 text-green-600 border-green-600 hover:bg-green-100 hover:text-green-700"
                           onClick={() => sendAbsenceNotification(student)}
                           disabled={notificationInProgress[student.id]}
-                          title={student.contactPhone ? "Send Absence Notification" : "No contact phone number"}
+                          title={student.contactPhone ? "Send WhatsApp Notification" : "No contact phone number"}
                         >
                           {notificationInProgress[student.id] ? (
                             <>
@@ -305,7 +283,7 @@ const StudentList = ({
                           ) : (
                             <>
                               <BellRing className="h-4 w-4 mr-1" />
-                              Notify
+                              WhatsApp
                             </>
                           )}
                         </Button>

@@ -5,10 +5,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.3";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-// For sending SMS via Twilio (as an example)
+// For sending messages via Twilio
 const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
 const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
-const TWILIO_PHONE_NUMBER = Deno.env.get("TWILIO_PHONE_NUMBER");
+const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
 
 // CORS headers
 const corsHeaders = {
@@ -37,6 +37,49 @@ function formatMauritianPhoneNumber(phoneNumber: string): string {
   
   // Add Mauritius country code if it's missing
   return `+230${digitsOnly}`;
+}
+
+// Helper function to send WhatsApp message via Twilio
+async function sendWhatsAppViaTwilio(to: string, message: string): Promise<any> {
+  console.log(`Attempting to send WhatsApp message to ${to}`);
+  
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) {
+    throw new Error("Missing Twilio credentials");
+  }
+  
+  // The WhatsApp number must be in format 'whatsapp:+1234567890'
+  const whatsappTo = `whatsapp:${to}`;
+  const whatsappFrom = `whatsapp:${TWILIO_WHATSAPP_NUMBER}`;
+  
+  try {
+    const twilioEndpoint = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
+    
+    const twilioResponse = await fetch(twilioEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
+      },
+      body: new URLSearchParams({
+        To: whatsappTo,
+        From: whatsappFrom,
+        Body: message,
+      }),
+    });
+    
+    const responseData = await twilioResponse.json();
+    
+    if (!twilioResponse.ok) {
+      console.error("Twilio WhatsApp API error:", responseData);
+      throw new Error(responseData.message || "Failed to send WhatsApp message");
+    }
+    
+    console.log("WhatsApp message sent successfully:", responseData.sid);
+    return responseData;
+  } catch (error) {
+    console.error("Error sending WhatsApp message:", error);
+    throw error;
+  }
 }
 
 serve(async (req) => {
@@ -69,7 +112,7 @@ serve(async (req) => {
     const requestBody = await req.json();
     console.log("Request body:", JSON.stringify(requestBody));
     
-    const { studentId, date, notificationType = "sms", message } = requestBody as RequestBody;
+    const { studentId, date, notificationType = "whatsapp", message } = requestBody as RequestBody;
     
     if (!studentId || !date) {
       console.error("Missing required parameters: studentId or date");
@@ -157,44 +200,25 @@ serve(async (req) => {
     // Log the notification attempt
     console.log(`Sending ${notificationType} notification to ${phoneNumber} for student ${studentId}`);
     
-    // Simulate sending notification
-    let success = true; // For simulation purposes
+    let success = false;
     let responseMessage = "";
+    let twilioData = null;
     
-    // In a real implementation, you would use the Twilio API or another service
-    if (notificationType === "sms" && TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
-      // This is where you would integrate with Twilio for SMS
-      /* 
-      const twilioResponse = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
-        },
-        body: new URLSearchParams({
-          To: phoneNumber,
-          From: TWILIO_PHONE_NUMBER,
-          Body: notificationMessage,
-        }),
-      });
-      
-      const twilioData = await twilioResponse.json();
-      success = twilioResponse.ok;
-      responseMessage = success ? "SMS sent successfully" : `Failed to send SMS: ${twilioData.message}`;
-      */
-      
-      // For now, simulate a successful response
-      success = true;
-      responseMessage = `SMS notification sent successfully (simulated) to ${phoneNumber}`;
-    } else if (notificationType === "whatsapp") {
-      // For WhatsApp, you would integrate with the WhatsApp Business API
-      // This is just a simulation
-      success = true;
-      responseMessage = `WhatsApp notification sent successfully (simulated) to ${phoneNumber}`;
-    } else {
-      // Email fallback or other notification types
-      success = true;
-      responseMessage = `${notificationType} notification sent successfully (simulated)`;
+    try {
+      if (notificationType === "whatsapp") {
+        // Send WhatsApp message using Twilio
+        twilioData = await sendWhatsAppViaTwilio(phoneNumber, notificationMessage);
+        success = true;
+        responseMessage = `WhatsApp notification sent successfully to ${phoneNumber}`;
+      } else {
+        // Fallback for other notification types (simulation for now)
+        success = true;
+        responseMessage = `${notificationType} notification sent successfully (simulated)`;
+      }
+    } catch (notificationError) {
+      console.error("Failed to send notification:", notificationError);
+      success = false;
+      responseMessage = `Failed to send ${notificationType} notification: ${notificationError.message}`;
     }
     
     console.log(responseMessage);
@@ -229,10 +253,11 @@ serve(async (req) => {
         message: responseMessage,
         channel: notificationType,
         studentId,
-        phoneNumber 
+        phoneNumber,
+        twilioResponse: twilioData
       }),
       { 
-        status: 200, 
+        status: success ? 200 : 500, 
         headers: { ...corsHeaders, "Content-Type": "application/json" } 
       }
     );
