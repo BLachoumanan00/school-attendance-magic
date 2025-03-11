@@ -54,6 +54,9 @@ async function sendWhatsAppViaTwilio(to: string, message: string): Promise<any> 
   try {
     const twilioEndpoint = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
     
+    console.log(`Sending WhatsApp via Twilio: from=${whatsappFrom}, to=${whatsappTo}`);
+    console.log(`Using credentials: TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID?.substring(0, 3)}...`);
+    
     const twilioResponse = await fetch(twilioEndpoint, {
       method: "POST",
       headers: {
@@ -70,7 +73,7 @@ async function sendWhatsAppViaTwilio(to: string, message: string): Promise<any> 
     const responseData = await twilioResponse.json();
     
     if (!twilioResponse.ok) {
-      console.error("Twilio WhatsApp API error:", responseData);
+      console.error("Twilio WhatsApp API error:", JSON.stringify(responseData));
       throw new Error(responseData.message || "Failed to send WhatsApp message");
     }
     
@@ -205,6 +208,22 @@ serve(async (req) => {
     let twilioData = null;
     
     try {
+      // Check if Twilio credentials are available
+      if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) {
+        console.error("Missing Twilio credentials");
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Server configuration error: Missing Twilio credentials",
+            requiredSecrets: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_NUMBER"]
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
+      
       if (notificationType === "whatsapp") {
         // Send WhatsApp message using Twilio
         twilioData = await sendWhatsAppViaTwilio(phoneNumber, notificationMessage);
@@ -217,8 +236,17 @@ serve(async (req) => {
       }
     } catch (notificationError) {
       console.error("Failed to send notification:", notificationError);
-      success = false;
-      responseMessage = `Failed to send ${notificationType} notification: ${notificationError.message}`;
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: `Failed to send ${notificationType} notification: ${notificationError.message}`,
+          error: notificationError
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
     }
     
     console.log(responseMessage);
