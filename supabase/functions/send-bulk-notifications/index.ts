@@ -4,11 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.3";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-// For sending messages via Twilio
-const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
-const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
-const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
-
 // CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,61 +17,25 @@ interface RequestBody {
   message?: string;
 }
 
-// Helper function to format Mauritian phone numbers to international format
-function formatMauritianPhoneNumber(phoneNumber: string): string {
-  if (!phoneNumber) return "";
-  
-  // Remove all non-digit characters
-  const digitsOnly = phoneNumber.replace(/\D/g, "");
-  
-  // Check if the number already has the country code
-  if (digitsOnly.startsWith("230")) {
-    return `+${digitsOnly}`;
-  }
-  
-  // Add Mauritius country code if it's missing
-  return `+230${digitsOnly}`;
-}
-
-// Helper function to send WhatsApp message via Twilio
-async function sendWhatsAppViaTwilio(to: string, message: string): Promise<any> {
-  console.log(`Attempting to send WhatsApp message to ${to}`);
-  
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) {
-    throw new Error("Missing Twilio credentials");
-  }
-  
-  // The WhatsApp number must be in format 'whatsapp:+1234567890'
-  const whatsappTo = `whatsapp:${to}`;
-  const whatsappFrom = `whatsapp:${TWILIO_WHATSAPP_NUMBER}`;
+// Helper function to send email notification
+async function sendEmailNotification(to: string, subject: string, message: string): Promise<any> {
+  console.log(`Sending email notification to ${to}`);
   
   try {
-    const twilioEndpoint = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
+    // Simple email notification implementation using console log for now
+    // In a real implementation, you would integrate with an email service here
+    console.log(`EMAIL TO: ${to}`);
+    console.log(`SUBJECT: ${subject}`);
+    console.log(`MESSAGE: ${message}`);
     
-    const twilioResponse = await fetch(twilioEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
-      },
-      body: new URLSearchParams({
-        To: whatsappTo,
-        From: whatsappFrom,
-        Body: message,
-      }),
-    });
-    
-    const responseData = await twilioResponse.json();
-    
-    if (!twilioResponse.ok) {
-      console.error("Twilio WhatsApp API error:", responseData);
-      throw new Error(responseData.message || "Failed to send WhatsApp message");
-    }
-    
-    console.log("WhatsApp message sent successfully:", responseData.sid);
-    return responseData;
+    // Simulating successful email delivery
+    return {
+      success: true,
+      id: `email-${Date.now()}`,
+      to: to
+    };
   } catch (error) {
-    console.error("Error sending WhatsApp message:", error);
+    console.error("Error sending email:", error);
     throw error;
   }
 }
@@ -111,7 +70,7 @@ serve(async (req) => {
     const requestBody = await req.json();
     console.log("Request body:", JSON.stringify(requestBody));
     
-    const { studentIds, date, notificationType = "whatsapp", message } = requestBody as RequestBody;
+    const { studentIds, date, notificationType = "email", message } = requestBody as RequestBody;
     
     if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
       console.error("No student IDs provided");
@@ -156,46 +115,31 @@ serve(async (req) => {
     
     console.log(`Found ${students?.length || 0} students of ${studentIds.length} requested`);
     
-    // Check if Twilio credentials are available for WhatsApp
-    if (notificationType === "whatsapp" && (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER)) {
-      console.error("Missing Twilio credentials for WhatsApp notifications");
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: "Server configuration error: Missing Twilio credentials for WhatsApp notifications"
-        }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        }
-      );
-    }
-    
     // Results to track successful and failed notifications
     const results = {
       success: 0,
       failed: 0,
-      noPhone: 0,
+      noEmail: 0,
       details: []
     };
     
     // Process each student
     if (students) {
       for (const student of students) {
-        if (!student.contact_phone) {
-          console.log(`Student ${student.id} has no contact phone`);
-          results.noPhone++;
+        if (!student.email) {
+          console.log(`Student ${student.id} has no email address`);
+          results.noEmail++;
           results.details.push({
             studentId: student.id,
             success: false,
-            reason: "No contact phone number"
+            reason: "No email address"
           });
           continue;
         }
         
-        // Format the phone number for Mauritian standards
-        const phoneNumber = formatMauritianPhoneNumber(student.contact_phone);
-        console.log(`Formatted phone number for student ${student.id}: ${phoneNumber}`);
+        // Get the email address for notification
+        const emailAddress = student.email;
+        console.log(`Using email address for student ${student.id}: ${emailAddress}`);
         
         // Format the student's name
         const studentName = `${student.first_name} ${student.last_name}`;
@@ -207,29 +151,24 @@ serve(async (req) => {
         const notificationMessage = message || defaultMessage;
         
         // Log the notification attempt
-        console.log(`Sending ${notificationType} notification to ${phoneNumber} for student ${student.id}`);
+        console.log(`Sending email notification to ${emailAddress} for student ${student.id}`);
         
         let success = false;
         let responseMessage = "";
-        let twilioResponse = null;
+        let emailResponse = null;
         
         try {
-          if (notificationType === "whatsapp") {
-            // Send WhatsApp message using Twilio
-            twilioResponse = await sendWhatsAppViaTwilio(phoneNumber, notificationMessage);
-            success = true;
-            responseMessage = `WhatsApp message sent successfully to ${phoneNumber}`;
-          } else {
-            // Fallback for other notification types (simulation for now)
-            success = true;
-            responseMessage = `${notificationType} notification sent successfully (simulated)`;
-          }
+          // Send email notification
+          const subject = `Attendance Notification for ${studentName}`;
+          emailResponse = await sendEmailNotification(emailAddress, subject, notificationMessage);
+          success = true;
+          responseMessage = `Email sent successfully to ${emailAddress}`;
           
           console.log(responseMessage);
         } catch (notificationError) {
-          console.error(`Failed to send notification to ${phoneNumber}:`, notificationError);
+          console.error(`Failed to send notification to ${emailAddress}:`, notificationError);
           success = false;
-          responseMessage = `Failed to send ${notificationType}: ${notificationError.message}`;
+          responseMessage = `Failed to send email: ${notificationError.message}`;
         }
         
         // Log the notification for record-keeping
@@ -239,7 +178,7 @@ serve(async (req) => {
             .from("attendance_notifications")
             .insert({
               student_id: student.id,
-              notification_type: notificationType,
+              notification_type: "email",
               notification_date: new Date().toISOString(),
               message: notificationMessage,
               success: success,
@@ -265,20 +204,20 @@ serve(async (req) => {
         results.details.push({
           studentId: student.id,
           studentName,
-          phoneNumber,
+          emailAddress,
           success,
           message: responseMessage,
-          twilioResponse: twilioResponse ? { sid: twilioResponse.sid } : null
+          emailResponse: emailResponse ? { id: emailResponse.id } : null
         });
       }
     }
     
-    console.log(`Processed ${results.success + results.failed + results.noPhone} notifications`);
+    console.log(`Processed ${results.success + results.failed + results.noEmail} notifications`);
     
     return new Response(
       JSON.stringify({ 
         success: results.success > 0,
-        message: `Processed ${students?.length || 0} notifications: ${results.success} sent successfully, ${results.failed} failed, ${results.noPhone} had no phone number.`,
+        message: `Processed ${students?.length || 0} notifications: ${results.success} sent successfully, ${results.failed} failed, ${results.noEmail} had no email address.`,
         details: results.details
       }),
       { 

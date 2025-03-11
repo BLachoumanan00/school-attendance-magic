@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -48,7 +47,7 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
         body: {
           studentIds,
           date: new Date().toISOString().split('T')[0],
-          notificationType: 'sms'
+          notificationType: 'email'
         }
       });
       
@@ -99,7 +98,7 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
         body: {
           studentId: student.studentId,
           date: new Date().toISOString().split('T')[0],
-          notificationType: 'sms',
+          notificationType: 'email',
           message: student.consecutiveAbsences && student.consecutiveAbsences >= 3
             ? `This is an important notification from the school attendance system. ${student.studentName} has been absent for ${student.consecutiveAbsences} consecutive days. Please contact the school immediately.`
             : `This is a notification from the school attendance system. ${student.studentName} has missed ${student.absenceRate?.toFixed(1)}% of classes in the last 30 days.`
@@ -112,7 +111,7 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
       
       toast({
         title: "Notification Sent",
-        description: `Parents of ${student.studentName} have been alerted about attendance issues via ${data.channel || 'SMS'}.`,
+        description: `Parents of ${student.studentName} have been alerted about attendance issues via ${data.channel || 'email'}.`,
         duration: 3000,
       });
       

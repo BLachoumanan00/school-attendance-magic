@@ -40,10 +40,10 @@ const StudentList = ({
   };
   
   const sendAbsenceNotification = async (student: Student) => {
-    if (!student.contactPhone) {
+    if (!student.email) {
       toast({
-        title: "No Contact Number",
-        description: `${student.firstName} ${student.lastName} has no contact phone number registered.`,
+        title: "No Email Address",
+        description: `${student.firstName} ${student.lastName} has no email address registered.`,
         variant: "destructive",
         duration: 3000,
       });
@@ -57,7 +57,7 @@ const StudentList = ({
         body: {
           studentId: student.id,
           date: date || new Date().toISOString().split('T')[0],
-          notificationType: 'whatsapp'
+          notificationType: 'email'
         }
       });
       
@@ -66,18 +66,18 @@ const StudentList = ({
       }
       
       toast({
-        title: "WhatsApp Notification Sent",
-        description: `Parents of ${student.firstName} ${student.lastName} have been notified of their absence via WhatsApp.`,
+        title: "Email Notification Sent",
+        description: `Parents of ${student.firstName} ${student.lastName} have been notified of their absence via email.`,
         duration: 3000,
       });
       
-      console.log("WhatsApp notification sent:", data);
+      console.log("Email notification sent:", data);
     } catch (error) {
-      console.error("Failed to send WhatsApp notification:", error);
+      console.error("Failed to send email notification:", error);
       
       toast({
-        title: "WhatsApp Notification Failed",
-        description: `Failed to send WhatsApp notification to parents of ${student.firstName} ${student.lastName}: ${error.message}`,
+        title: "Email Notification Failed",
+        description: `Failed to send email notification to parents of ${student.firstName} ${student.lastName}: ${error.message}`,
         variant: "destructive",
         duration: 5000,
       });
@@ -274,7 +274,7 @@ const StudentList = ({
                           className="h-8 px-2 text-green-600 border-green-600 hover:bg-green-100 hover:text-green-700"
                           onClick={() => sendAbsenceNotification(student)}
                           disabled={notificationInProgress[student.id]}
-                          title={student.contactPhone ? "Send WhatsApp Notification" : "No contact phone number"}
+                          title={student.email ? "Send Email Notification" : "No email address"}
                         >
                           {notificationInProgress[student.id] ? (
                             <>
@@ -283,7 +283,7 @@ const StudentList = ({
                           ) : (
                             <>
                               <BellRing className="h-4 w-4 mr-1" />
-                              WhatsApp
+                              Email
                             </>
                           )}
                         </Button>
