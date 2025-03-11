@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.3";
 
@@ -17,13 +18,12 @@ interface RequestBody {
   message?: string;
 }
 
-// Helper function to send email notification
+// Helper function to send email notification (fallback)
 async function sendEmailNotification(to: string, subject: string, message: string): Promise<any> {
   console.log(`Sending email notification to ${to}`);
   
   try {
     // Simple email notification implementation using console log for now
-    // In a real implementation, you would integrate with an email service here
     console.log(`EMAIL TO: ${to}`);
     console.log(`SUBJECT: ${subject}`);
     console.log(`MESSAGE: ${message}`);
@@ -36,6 +36,28 @@ async function sendEmailNotification(to: string, subject: string, message: strin
     };
   } catch (error) {
     console.error("Error sending email:", error);
+    throw error;
+  }
+}
+
+// Helper function to send SMS notification
+async function sendSmsNotification(to: string, message: string): Promise<any> {
+  console.log(`Sending SMS notification to ${to}`);
+  
+  try {
+    // Simple SMS notification implementation using console log
+    // In a real implementation, you would integrate with an SMS service here
+    console.log(`SMS TO: ${to}`);
+    console.log(`MESSAGE: ${message}`);
+    
+    // Simulating successful SMS delivery
+    return {
+      success: true,
+      id: `sms-${Date.now()}`,
+      to: to
+    };
+  } catch (error) {
+    console.error("Error sending SMS:", error);
     throw error;
   }
 }
@@ -70,7 +92,7 @@ serve(async (req) => {
     const requestBody = await req.json();
     console.log("Request body:", JSON.stringify(requestBody));
     
-    const { studentId, date, notificationType = "email", message } = requestBody as RequestBody;
+    const { studentId, date, notificationType = "sms", message } = requestBody as RequestBody;
     
     if (!studentId || !date) {
       console.error("Missing required parameters: studentId or date");
@@ -128,25 +150,6 @@ serve(async (req) => {
       );
     }
     
-    // Email is required for sending the notification
-    if (!student.email) {
-      console.error("Student has no email address");
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: "Student has no email address" 
-        }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        }
-      );
-    }
-    
-    // Get the email address for notification
-    const emailAddress = student.email;
-    console.log(`Using email address for notification: ${emailAddress}`);
-    
     // Format the student's name
     const studentName = `${student.first_name} ${student.last_name}`;
     
@@ -156,30 +159,47 @@ serve(async (req) => {
     // Use custom message if provided, otherwise use default
     const notificationMessage = message || defaultMessage;
     
-    // Log the notification attempt
-    console.log(`Sending email notification to ${emailAddress} for student ${studentId}`);
-    
     let success = false;
     let responseMessage = "";
-    let emailData = null;
+    let notificationData = null;
+    let notificationChannel = notificationType;
     
-    try {
-      // Send email notification
-      const subject = `Attendance Notification for ${studentName}`;
-      emailData = await sendEmailNotification(emailAddress, subject, notificationMessage);
-      success = true;
-      responseMessage = `Email notification sent successfully to ${emailAddress}`;
-    } catch (notificationError) {
-      console.error("Failed to send notification:", notificationError);
+    // Determine which notification method to use
+    if (notificationType === "sms" && student.contactPhone) {
+      try {
+        console.log(`Sending SMS notification to ${student.contactPhone} for student ${studentId}`);
+        notificationData = await sendSmsNotification(student.contactPhone, notificationMessage);
+        success = true;
+        responseMessage = `SMS notification sent successfully to ${student.contactPhone}`;
+      } catch (notificationError) {
+        console.error("Failed to send SMS notification:", notificationError);
+        success = false;
+        responseMessage = `Failed to send SMS notification: ${notificationError.message}`;
+      }
+    } else if (student.email) {
+      // Fallback to email if SMS is requested but no phone number is available or if email is requested
+      try {
+        console.log(`Sending email notification to ${student.email} for student ${studentId}`);
+        const subject = `Attendance Notification for ${studentName}`;
+        notificationData = await sendEmailNotification(student.email, subject, notificationMessage);
+        success = true;
+        responseMessage = `Email notification sent successfully to ${student.email}`;
+        notificationChannel = "email";
+      } catch (notificationError) {
+        console.error("Failed to send email notification:", notificationError);
+        success = false;
+        responseMessage = `Failed to send email notification: ${notificationError.message}`;
+      }
+    } else {
+      console.error("Student has no contact information");
       return new Response(
-        JSON.stringify({
-          success: false,
-          message: `Failed to send email notification: ${notificationError.message}`,
-          error: notificationError
+        JSON.stringify({ 
+          success: false, 
+          message: "Student has no contact information for notifications" 
         }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
         }
       );
     }
@@ -193,7 +213,7 @@ serve(async (req) => {
         .from("attendance_notifications")
         .insert({
           student_id: studentId,
-          notification_type: "email",
+          notification_type: notificationChannel,
           notification_date: new Date().toISOString(),
           message: notificationMessage,
           success: success,
@@ -214,10 +234,10 @@ serve(async (req) => {
       JSON.stringify({ 
         success, 
         message: responseMessage,
-        channel: "email",
+        channel: notificationChannel,
         studentId,
-        emailAddress,
-        emailResponse: emailData
+        contactInfo: notificationChannel === "sms" ? student.contactPhone : student.email,
+        notificationResponse: notificationData
       }),
       { 
         status: success ? 200 : 500, 

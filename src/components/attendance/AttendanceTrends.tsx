@@ -1,9 +1,10 @@
+
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { AttendanceSummary } from "@/lib/types";
-import { AlertCircle, TrendingDown, AlertTriangle, BellRing } from "lucide-react";
+import { AlertCircle, TrendingDown, AlertTriangle, BellRing, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +28,7 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
   ).slice(0, 5); // Top 5 highest absence rates
   
   // Send notification to all students with attendance issues
-  const notifyAllStudents = async () => {
+  const notifyAllStudents = async (notificationType: 'sms' | 'email' = 'sms') => {
     if (studentsNeedingAttention.length === 0) return;
     
     setNotifyingAll(true);
@@ -47,7 +48,7 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
         body: {
           studentIds,
           date: new Date().toISOString().split('T')[0],
-          notificationType: 'email'
+          notificationType
         }
       });
       
@@ -78,7 +79,7 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
   };
   
   // Send notification to a specific student
-  const notifyStudent = async (student: AttendanceSummary) => {
+  const notifyStudent = async (student: AttendanceSummary, notificationType: 'sms' | 'email' = 'sms') => {
     if (!student.studentId) {
       toast({
         title: "Notification Failed",
@@ -98,7 +99,7 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
         body: {
           studentId: student.studentId,
           date: new Date().toISOString().split('T')[0],
-          notificationType: 'email',
+          notificationType,
           message: student.consecutiveAbsences && student.consecutiveAbsences >= 3
             ? `This is an important notification from the school attendance system. ${student.studentName} has been absent for ${student.consecutiveAbsences} consecutive days. Please contact the school immediately.`
             : `This is a notification from the school attendance system. ${student.studentName} has missed ${student.absenceRate?.toFixed(1)}% of classes in the last 30 days.`
@@ -111,7 +112,7 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
       
       toast({
         title: "Notification Sent",
-        description: `Parents of ${student.studentName} have been alerted about attendance issues via ${data.channel || 'email'}.`,
+        description: `Parents of ${student.studentName} have been alerted about attendance issues via ${data.channel || notificationType}.`,
         duration: 3000,
       });
       
@@ -140,22 +141,40 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">Attendance Alerts</h3>
-            <Button 
-              onClick={notifyAllStudents}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-1 text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700"
-              disabled={notifyingAll}
-            >
-              {notifyingAll ? (
-                <span className="animate-pulse">Sending Notifications...</span>
-              ) : (
-                <>
-                  <BellRing className="h-4 w-4" />
-                  Notify All Parents
-                </>
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => notifyAllStudents('sms')}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1 text-orange-600 border-orange-600 hover:bg-orange-100 hover:text-orange-700"
+                disabled={notifyingAll}
+              >
+                {notifyingAll ? (
+                  <span className="animate-pulse">Sending...</span>
+                ) : (
+                  <>
+                    <Phone className="h-4 w-4" />
+                    SMS All
+                  </>
+                )}
+              </Button>
+              <Button 
+                onClick={() => notifyAllStudents('email')}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1 text-green-600 border-green-600 hover:bg-green-100 hover:text-green-700"
+                disabled={notifyingAll}
+              >
+                {notifyingAll ? (
+                  <span className="animate-pulse">Sending...</span>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4" />
+                    Email All
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
           <div className="grid gap-4">
             {studentsNeedingAttention.map((summary) => (
@@ -172,22 +191,40 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
                       )}
                     </AlertDescription>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="ml-4 mt-1 h-8 px-2 text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700"
-                    onClick={() => notifyStudent(summary)}
-                    disabled={notifyingStudent[summary.studentId!]}
-                  >
-                    {notifyingStudent[summary.studentId!] ? (
-                      <span className="animate-pulse">Sending...</span>
-                    ) : (
-                      <>
-                        <BellRing className="h-4 w-4 mr-1" />
-                        Notify
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex gap-2 ml-4 mt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-orange-600 border-orange-600 hover:bg-orange-100 hover:text-orange-700"
+                      onClick={() => notifyStudent(summary, 'sms')}
+                      disabled={notifyingStudent[summary.studentId!]}
+                    >
+                      {notifyingStudent[summary.studentId!] ? (
+                        <span className="animate-pulse">Sending...</span>
+                      ) : (
+                        <>
+                          <Phone className="h-4 w-4 mr-1" />
+                          SMS
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-green-600 border-green-600 hover:bg-green-100 hover:text-green-700"
+                      onClick={() => notifyStudent(summary, 'email')}
+                      disabled={notifyingStudent[summary.studentId!]}
+                    >
+                      {notifyingStudent[summary.studentId!] ? (
+                        <span className="animate-pulse">Sending...</span>
+                      ) : (
+                        <>
+                          <Mail className="h-4 w-4 mr-1" />
+                          Email
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </Alert>
             ))}
@@ -232,22 +269,40 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
                     </TableCell>
                     <TableCell>
                       {summary.needsAttention && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 px-2 text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700"
-                          onClick={() => notifyStudent(summary)}
-                          disabled={notifyingStudent[summary.studentId!]}
-                        >
-                          {notifyingStudent[summary.studentId!] ? (
-                            <span className="animate-pulse">Sending...</span>
-                          ) : (
-                            <>
-                              <BellRing className="h-4 w-4 mr-1" />
-                              Notify
-                            </>
-                          )}
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 text-orange-600 border-orange-600 hover:bg-orange-100 hover:text-orange-700"
+                            onClick={() => notifyStudent(summary, 'sms')}
+                            disabled={notifyingStudent[summary.studentId!]}
+                          >
+                            {notifyingStudent[summary.studentId!] ? (
+                              <span className="animate-pulse">Sending...</span>
+                            ) : (
+                              <>
+                                <Phone className="h-4 w-4 mr-1" />
+                                SMS
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 text-green-600 border-green-600 hover:bg-green-100 hover:text-green-700"
+                            onClick={() => notifyStudent(summary, 'email')}
+                            disabled={notifyingStudent[summary.studentId!]}
+                          >
+                            {notifyingStudent[summary.studentId!] ? (
+                              <span className="animate-pulse">Sending...</span>
+                            ) : (
+                              <>
+                                <Mail className="h-4 w-4 mr-1" />
+                                Email
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>

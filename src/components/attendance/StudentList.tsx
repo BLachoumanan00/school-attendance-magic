@@ -1,9 +1,10 @@
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Student, AttendanceRecord } from "@/lib/types";
 import { useState } from "react";
-import { CheckCircle, XCircle, Clock, AlertCircle, Search, Download, Trash2, ArrowUpDown, BellRing, Phone } from "lucide-react";
+import { CheckCircle, XCircle, Clock, AlertCircle, Search, Download, Trash2, ArrowUpDown, BellRing, Phone, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -39,11 +40,13 @@ const StudentList = ({
     return record ? record.status : null;
   };
   
-  const sendAbsenceNotification = async (student: Student) => {
-    if (!student.email) {
+  const sendAbsenceNotification = async (student: Student, type: 'sms' | 'email' = 'sms') => {
+    const contactInfo = type === 'sms' ? student.contactPhone : student.email;
+    
+    if (!contactInfo) {
       toast({
-        title: "No Email Address",
-        description: `${student.firstName} ${student.lastName} has no email address registered.`,
+        title: type === 'sms' ? "No Phone Number" : "No Email Address",
+        description: `${student.firstName} ${student.lastName} has no ${type === 'sms' ? 'phone number' : 'email address'} registered.`,
         variant: "destructive",
         duration: 3000,
       });
@@ -57,7 +60,7 @@ const StudentList = ({
         body: {
           studentId: student.id,
           date: date || new Date().toISOString().split('T')[0],
-          notificationType: 'email'
+          notificationType: type
         }
       });
       
@@ -66,18 +69,18 @@ const StudentList = ({
       }
       
       toast({
-        title: "Email Notification Sent",
-        description: `Parents of ${student.firstName} ${student.lastName} have been notified of their absence via email.`,
+        title: `${data.channel === 'sms' ? 'SMS' : 'Email'} Notification Sent`,
+        description: `Parents of ${student.firstName} ${student.lastName} have been notified of their absence via ${data.channel === 'sms' ? 'SMS' : 'email'}.`,
         duration: 3000,
       });
       
-      console.log("Email notification sent:", data);
+      console.log(`${data.channel} notification sent:`, data);
     } catch (error) {
-      console.error("Failed to send email notification:", error);
+      console.error(`Failed to send ${type} notification:`, error);
       
       toast({
-        title: "Email Notification Failed",
-        description: `Failed to send email notification to parents of ${student.firstName} ${student.lastName}: ${error.message}`,
+        title: `${type.toUpperCase()} Notification Failed`,
+        description: `Failed to send ${type} notification to parents of ${student.firstName} ${student.lastName}: ${error.message}`,
         variant: "destructive",
         duration: 5000,
       });
@@ -257,36 +260,67 @@ const StudentList = ({
                     <TableCell>{student.lastName}, {student.firstName}</TableCell>
                     <TableCell>{student.class}</TableCell>
                     <TableCell>
-                      {student.contactPhone ? (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3" />
-                          {student.contactPhone}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">No contact</span>
-                      )}
+                      <div className="flex flex-col gap-1 text-sm">
+                        {student.contactPhone && (
+                          <div className="flex items-center gap-1">
+                            <Phone className="h-3 w-3" />
+                            {student.contactPhone}
+                          </div>
+                        )}
+                        {student.email && (
+                          <div className="flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            {student.email}
+                          </div>
+                        )}
+                        {!student.contactPhone && !student.email && (
+                          <span className="text-sm text-muted-foreground">No contact</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {status === 'absent' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 px-2 text-green-600 border-green-600 hover:bg-green-100 hover:text-green-700"
-                          onClick={() => sendAbsenceNotification(student)}
-                          disabled={notificationInProgress[student.id]}
-                          title={student.email ? "Send Email Notification" : "No email address"}
-                        >
-                          {notificationInProgress[student.id] ? (
-                            <>
-                              <span className="animate-pulse mr-1">Sending...</span>
-                            </>
-                          ) : (
-                            <>
-                              <BellRing className="h-4 w-4 mr-1" />
-                              Email
-                            </>
+                        <div className="flex gap-2">
+                          {student.contactPhone && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 text-orange-600 border-orange-600 hover:bg-orange-100 hover:text-orange-700"
+                              onClick={() => sendAbsenceNotification(student, 'sms')}
+                              disabled={notificationInProgress[student.id]}
+                              title="Send SMS Notification"
+                            >
+                              {notificationInProgress[student.id] ? (
+                                <span className="animate-pulse mr-1">Sending...</span>
+                              ) : (
+                                <>
+                                  <Phone className="h-4 w-4 mr-1" />
+                                  SMS
+                                </>
+                              )}
+                            </Button>
                           )}
-                        </Button>
+                          
+                          {student.email && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 text-green-600 border-green-600 hover:bg-green-100 hover:text-green-700"
+                              onClick={() => sendAbsenceNotification(student, 'email')}
+                              disabled={notificationInProgress[student.id]}
+                              title="Send Email Notification"
+                            >
+                              {notificationInProgress[student.id] ? (
+                                <span className="animate-pulse mr-1">Sending...</span>
+                              ) : (
+                                <>
+                                  <Mail className="h-4 w-4 mr-1" />
+                                  Email
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </TableCell>
                     {onRecordAttendance && (

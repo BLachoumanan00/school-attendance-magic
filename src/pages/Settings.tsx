@@ -10,7 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { LogOut, Save, School, User } from "lucide-react";
+import { LogOut, Save, School, User, BellRing } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const Settings = () => {
   const { user, signOut } = useAuth();
@@ -21,6 +22,8 @@ const Settings = () => {
   const [schoolEmail, setSchoolEmail] = useState("admin@adventistcollege.mu");
   const [autoSave, setAutoSave] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
+  const [smsNotifications, setSmsNotifications] = useState(true);
+  const [defaultNotificationType, setDefaultNotificationType] = useState<"sms" | "email">("sms");
   
   const handleSaveSchoolSettings = () => {
     // In a real app, this would save to the database
@@ -128,34 +131,71 @@ const Settings = () => {
                 <Separator />
 
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Preferences</h3>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="autoSave">Auto-save Attendance</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Automatically save attendance records when marking students
-                      </p>
+                  <h3 className="text-lg font-medium flex items-center">
+                    <BellRing className="h-4 w-4 mr-2" />
+                    Notification Preferences
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="autoSave">Auto-save Attendance</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Automatically save attendance records when marking students
+                        </p>
+                      </div>
+                      <Switch 
+                        id="autoSave" 
+                        checked={autoSave} 
+                        onCheckedChange={setAutoSave}
+                      />
                     </div>
-                    <Switch 
-                      id="autoSave" 
-                      checked={autoSave} 
-                      onCheckedChange={setAutoSave}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="emailNotifications">Email Notifications</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Send email notifications for absence reports
-                      </p>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="smsNotifications">SMS Notifications</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Send SMS notifications for absence reports
+                        </p>
+                      </div>
+                      <Switch 
+                        id="smsNotifications" 
+                        checked={smsNotifications}
+                        onCheckedChange={setSmsNotifications}
+                      />
                     </div>
-                    <Switch 
-                      id="emailNotifications" 
-                      checked={emailNotifications}
-                      onCheckedChange={setEmailNotifications}
-                    />
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="emailNotifications">Email Notifications</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Send email notifications for absence reports
+                        </p>
+                      </div>
+                      <Switch 
+                        id="emailNotifications" 
+                        checked={emailNotifications}
+                        onCheckedChange={setEmailNotifications}
+                      />
+                    </div>
+                    
+                    <div className="pt-2">
+                      <Label>Default Notification Method</Label>
+                      <RadioGroup 
+                        value={defaultNotificationType} 
+                        onValueChange={(value) => setDefaultNotificationType(value as "sms" | "email")}
+                        className="flex space-x-4 mt-2"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="sms" id="sms" />
+                          <Label htmlFor="sms" className="cursor-pointer">SMS</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="email" id="email" />
+                          <Label htmlFor="email" className="cursor-pointer">Email</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
                   </div>
                 </div>
               </CardContent>

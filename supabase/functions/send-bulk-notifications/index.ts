@@ -17,13 +17,12 @@ interface RequestBody {
   message?: string;
 }
 
-// Helper function to send email notification
+// Helper function to send email notification (fallback)
 async function sendEmailNotification(to: string, subject: string, message: string): Promise<any> {
   console.log(`Sending email notification to ${to}`);
   
   try {
     // Simple email notification implementation using console log for now
-    // In a real implementation, you would integrate with an email service here
     console.log(`EMAIL TO: ${to}`);
     console.log(`SUBJECT: ${subject}`);
     console.log(`MESSAGE: ${message}`);
@@ -36,6 +35,28 @@ async function sendEmailNotification(to: string, subject: string, message: strin
     };
   } catch (error) {
     console.error("Error sending email:", error);
+    throw error;
+  }
+}
+
+// Helper function to send SMS notification
+async function sendSmsNotification(to: string, message: string): Promise<any> {
+  console.log(`Sending SMS notification to ${to}`);
+  
+  try {
+    // Simple SMS notification implementation using console log
+    // In a real implementation, you would integrate with an SMS service here
+    console.log(`SMS TO: ${to}`);
+    console.log(`MESSAGE: ${message}`);
+    
+    // Simulating successful SMS delivery
+    return {
+      success: true,
+      id: `sms-${Date.now()}`,
+      to: to
+    };
+  } catch (error) {
+    console.error("Error sending SMS:", error);
     throw error;
   }
 }
@@ -70,7 +91,7 @@ serve(async (req) => {
     const requestBody = await req.json();
     console.log("Request body:", JSON.stringify(requestBody));
     
-    const { studentIds, date, notificationType = "email", message } = requestBody as RequestBody;
+    const { studentIds, date, notificationType = "sms", message } = requestBody as RequestBody;
     
     if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
       console.error("No student IDs provided");
@@ -119,27 +140,29 @@ serve(async (req) => {
     const results = {
       success: 0,
       failed: 0,
-      noEmail: 0,
+      noContact: 0,
+      smsCount: 0,
+      emailCount: 0,
       details: []
     };
     
     // Process each student
     if (students) {
       for (const student of students) {
-        if (!student.email) {
-          console.log(`Student ${student.id} has no email address`);
-          results.noEmail++;
+        // Determine if we can send SMS or need to fallback to email
+        const canSendSms = notificationType === "sms" && !!student.contactPhone;
+        const canSendEmail = !!student.email;
+        
+        if (!canSendSms && !canSendEmail) {
+          console.log(`Student ${student.id} has no contact information`);
+          results.noContact++;
           results.details.push({
             studentId: student.id,
             success: false,
-            reason: "No email address"
+            reason: "No contact information"
           });
           continue;
         }
-        
-        // Get the email address for notification
-        const emailAddress = student.email;
-        console.log(`Using email address for student ${student.id}: ${emailAddress}`);
         
         // Format the student's name
         const studentName = `${student.first_name} ${student.last_name}`;
@@ -150,35 +173,70 @@ serve(async (req) => {
         // Use custom message if provided, otherwise use default
         const notificationMessage = message || defaultMessage;
         
-        // Log the notification attempt
-        console.log(`Sending email notification to ${emailAddress} for student ${student.id}`);
-        
         let success = false;
         let responseMessage = "";
-        let emailResponse = null;
+        let notificationResponse = null;
+        let usedChannel = "none";
         
-        try {
-          // Send email notification
-          const subject = `Attendance Notification for ${studentName}`;
-          emailResponse = await sendEmailNotification(emailAddress, subject, notificationMessage);
-          success = true;
-          responseMessage = `Email sent successfully to ${emailAddress}`;
-          
-          console.log(responseMessage);
-        } catch (notificationError) {
-          console.error(`Failed to send notification to ${emailAddress}:`, notificationError);
-          success = false;
-          responseMessage = `Failed to send email: ${notificationError.message}`;
+        // Try to send SMS first if it's the preferred method and contact info is available
+        if (canSendSms) {
+          try {
+            console.log(`Sending SMS notification to ${student.contactPhone} for student ${student.id}`);
+            notificationResponse = await sendSmsNotification(student.contactPhone, notificationMessage);
+            success = true;
+            responseMessage = `SMS sent successfully to ${student.contactPhone}`;
+            usedChannel = "sms";
+            results.smsCount++;
+          } catch (notificationError) {
+            console.error(`Failed to send SMS to ${student.contactPhone}:`, notificationError);
+            
+            // If SMS fails and email is available, try email as fallback
+            if (canSendEmail) {
+              try {
+                console.log(`Falling back to email notification for student ${student.id}`);
+                const subject = `Attendance Notification for ${studentName}`;
+                notificationResponse = await sendEmailNotification(student.email, subject, notificationMessage);
+                success = true;
+                responseMessage = `Email sent successfully to ${student.email} (SMS failed)`;
+                usedChannel = "email";
+                results.emailCount++;
+              } catch (emailError) {
+                console.error(`Failed to send email to ${student.email}:`, emailError);
+                success = false;
+                responseMessage = `Failed to send both SMS and email: ${emailError.message}`;
+              }
+            } else {
+              success = false;
+              responseMessage = `Failed to send SMS: ${notificationError.message}`;
+            }
+          }
         }
+        // If SMS is not available or not preferred, try email
+        else if (canSendEmail) {
+          try {
+            console.log(`Sending email notification to ${student.email} for student ${student.id}`);
+            const subject = `Attendance Notification for ${studentName}`;
+            notificationResponse = await sendEmailNotification(student.email, subject, notificationMessage);
+            success = true;
+            responseMessage = `Email sent successfully to ${student.email}`;
+            usedChannel = "email";
+            results.emailCount++;
+          } catch (emailError) {
+            console.error(`Failed to send email to ${student.email}:`, emailError);
+            success = false;
+            responseMessage = `Failed to send email: ${emailError.message}`;
+          }
+        }
+        
+        console.log(responseMessage);
         
         // Log the notification for record-keeping
         try {
-          // Log the notification for record-keeping
           const { error: logError } = await supabase
             .from("attendance_notifications")
             .insert({
               student_id: student.id,
-              notification_type: "email",
+              notification_type: usedChannel,
               notification_date: new Date().toISOString(),
               message: notificationMessage,
               success: success,
@@ -204,20 +262,21 @@ serve(async (req) => {
         results.details.push({
           studentId: student.id,
           studentName,
-          emailAddress,
+          contactInfo: usedChannel === "sms" ? student.contactPhone : student.email,
+          channel: usedChannel,
           success,
           message: responseMessage,
-          emailResponse: emailResponse ? { id: emailResponse.id } : null
+          notificationResponse: notificationResponse ? { id: notificationResponse.id } : null
         });
       }
     }
     
-    console.log(`Processed ${results.success + results.failed + results.noEmail} notifications`);
+    console.log(`Processed ${results.success + results.failed + results.noContact} notifications`);
     
     return new Response(
       JSON.stringify({ 
         success: results.success > 0,
-        message: `Processed ${students?.length || 0} notifications: ${results.success} sent successfully, ${results.failed} failed, ${results.noEmail} had no email address.`,
+        message: `Processed ${students?.length || 0} notifications: ${results.success} sent successfully (${results.smsCount} SMS, ${results.emailCount} email), ${results.failed} failed, ${results.noContact} had no contact information.`,
         details: results.details
       }),
       { 
