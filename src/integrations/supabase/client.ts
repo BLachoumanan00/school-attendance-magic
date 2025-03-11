@@ -9,4 +9,38 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+// Custom TypeScript type extension for the new table that isn't in the auto-generated types
+type CustomDatabase = Database & {
+  public: {
+    Tables: {
+      attendance_notifications: {
+        Row: {
+          id: string;
+          student_id: string;
+          notification_type: string;
+          notification_date: string;
+          message: string;
+          success: boolean;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          notification_type: string;
+          notification_date?: string;
+          message: string;
+          success?: boolean;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          notification_type?: string;
+          notification_date?: string;
+          message?: string;
+          success?: boolean;
+        };
+      };
+    } & Database['public']['Tables'];
+  } & Database['public'];
+};
+
+export const supabase = createClient<CustomDatabase>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);

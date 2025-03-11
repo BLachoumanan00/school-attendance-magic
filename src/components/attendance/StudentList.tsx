@@ -20,6 +20,8 @@ interface ExtendedStudentListProps {
   onDeleteStudent: (studentId: string) => void;
   isLoading: boolean;
   allStudents?: Student[]; // Optional prop to pass all students for notifications
+  filterStatus?: AttendanceRecord['status']; // Added filterStatus prop
+  selectedClass?: string; // Added selectedClass prop
 }
 
 const ExtendedStudentList: React.FC<ExtendedStudentListProps> = ({
@@ -29,7 +31,9 @@ const ExtendedStudentList: React.FC<ExtendedStudentListProps> = ({
   onRecordAttendance,
   onDeleteStudent,
   isLoading,
-  allStudents = []
+  allStudents = [],
+  filterStatus, // Add the prop
+  selectedClass // Add the prop
 }) => {
   const { toast } = useToast();
   const [trendData, setTrendData] = useState([]);
@@ -147,6 +151,8 @@ const ExtendedStudentList: React.FC<ExtendedStudentListProps> = ({
         isLoading={isLoading}
         onAnalyzeTrends={analyzeAttendanceTrends}
         attendanceCardExtraProps={attendanceCardExtendedProps}
+        filterStatus={filterStatus} // Pass the prop
+        selectedClass={selectedClass} // Pass the prop
       />
       
       {trendData.length > 0 && (

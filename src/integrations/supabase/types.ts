@@ -9,6 +9,41 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      attendance_notifications: {
+        Row: {
+          id: string
+          message: string
+          notification_date: string
+          notification_type: string
+          student_id: string
+          success: boolean
+        }
+        Insert: {
+          id?: string
+          message: string
+          notification_date?: string
+          notification_type: string
+          student_id: string
+          success?: boolean
+        }
+        Update: {
+          id?: string
+          message?: string
+          notification_date?: string
+          notification_type?: string
+          student_id?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_notifications_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_records: {
         Row: {
           created_at: string
