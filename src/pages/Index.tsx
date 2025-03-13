@@ -16,6 +16,7 @@ import {
   checkAttendanceTrends 
 } from "@/lib/attendanceSupabase";
 import { AttendanceSummary, ClassSummary, Student } from "@/lib/types";
+import ExtendedStudentList from "@/components/attendance/ExtendedStudentList";
 
 const formatDate = (date: Date): string => {
   return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -382,7 +383,7 @@ const Index = () => {
         <div className="mt-8">
           <h2 className="text-2xl font-semibold mb-3">{getFilterTitle()}</h2>
           {students.length > 0 ? (
-            <StudentList 
+            <ExtendedStudentList 
               students={students} 
               isLoading={isLoading}
               date={today}
@@ -393,6 +394,7 @@ const Index = () => {
                 (selectedFilter.value as "present" | "absent" | "late" | "excused" | null) : 
                 null}
               selectedClass={selectedFilter.type === "class" ? selectedFilter.value : null}
+              allStudents={students}
             />
           ) : (
             <p>No students found. Import students first.</p>
