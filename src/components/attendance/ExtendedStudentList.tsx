@@ -81,23 +81,6 @@ const ExtendedStudentList: React.FC<ExtendedStudentListProps> = ({
       setIsRefreshing(false);
     }
   };
-  
-  // Prepare additional props for attendance cards
-  const attendanceCardExtendedProps = (student: Student) => {
-    const record = attendanceRecords.find(
-      r => r.studentId === student.id
-    );
-    
-    return {
-      additionalActions: (
-        <ContactOptions 
-          student={student}
-          onRefreshData={refreshStudentData}
-          isRefreshing={isRefreshing}
-        />
-      )
-    };
-  };
 
   return (
     <div className="space-y-6">
@@ -115,7 +98,7 @@ const ExtendedStudentList: React.FC<ExtendedStudentListProps> = ({
         </Button>
       </div>
       
-      {/* Remove props that don't exist in the StudentList interface */}
+      {/* We'll directly use the StudentList component without extra props */}
       <StudentList
         students={students}
         date={date}
