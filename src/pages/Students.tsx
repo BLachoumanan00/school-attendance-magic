@@ -1,6 +1,5 @@
-
 import MainLayout from "@/components/layout/MainLayout";
-import ExtendedStudentList from "@/components/attendance/StudentList"; // This will load our extended version
+import StudentList from "@/components/attendance/StudentList";
 import RecycleBin from "@/components/students/RecycleBin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -291,14 +290,13 @@ const Students = () => {
                     <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
                   </div>
                 ) : (
-                  <ExtendedStudentList
+                  <StudentList
                     students={students.filter(s => !s.deletedAt)}
                     date={date}
                     attendanceRecords={attendanceRecords}
                     onRecordAttendance={handleRecordAttendance}
                     onDeleteStudent={handleDeleteStudent}
                     isLoading={isLoading}
-                    allStudents={students}
                   />
                 )}
               </CardContent>

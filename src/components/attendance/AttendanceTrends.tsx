@@ -7,16 +7,14 @@ import { AttendanceSummary } from "@/lib/types";
 import { AlertCircle, TrendingDown, AlertTriangle, BellRing, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Student } from "@/lib/types";
-import { sendStudentNotification, sendBulkNotifications } from "@/lib/notificationService";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AttendanceTrendsProps {
   trendData: AttendanceSummary[];
   isLoading: boolean;
-  students: Student[];
 }
 
-const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoading, students }) => {
+const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoading }) => {
   const { toast } = useToast();
   const [notifyingAll, setNotifyingAll] = useState(false);
   const [notifyingStudent, setNotifyingStudent] = useState<{[key: string]: boolean}>({});
@@ -29,11 +27,6 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
     (b.absenceRate || 0) - (a.absenceRate || 0)
   ).slice(0, 5); // Top 5 highest absence rates
   
-  // Find full student objects for students needing attention
-  const findStudentById = (studentId: string): Student | undefined => {
-    return students.find(s => s.id === studentId);
-  };
-  
   // Send notification to all students with attendance issues
   const notifyAllStudents = async (notificationType: 'sms' | 'email' = 'sms') => {
     if (studentsNeedingAttention.length === 0) return;
@@ -41,29 +34,36 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
     setNotifyingAll(true);
     
     try {
-      const studentsToNotify: Student[] = [];
+      // Get all student IDs that need attention
+      const studentIds = studentsNeedingAttention
+        .filter(s => s.studentId)
+        .map(s => s.studentId!);
       
-      // Find the full student objects for each student that needs attention
-      for (const summary of studentsNeedingAttention) {
-        if (summary.studentId) {
-          const student = findStudentById(summary.studentId);
-          if (student) {
-            studentsToNotify.push(student);
-          }
+      if (studentIds.length === 0) {
+        throw new Error("No valid student IDs to notify");
+      }
+      
+      // Call the Edge Function to send notifications in bulk
+      const { data, error } = await supabase.functions.invoke('send-bulk-notifications', {
+        body: {
+          studentIds,
+          date: new Date().toISOString().split('T')[0],
+          notificationType
         }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
       }
       
-      if (studentsToNotify.length === 0) {
-        throw new Error("No valid students to notify");
-      }
+      // Show success toast
+      toast({
+        title: "Notifications Sent",
+        description: data.message || `Sent attendance alerts to parents of ${studentIds.length} students with attendance issues.`,
+        duration: 5000,
+      });
       
-      // Generate appropriate messages for each student
-      await sendBulkNotifications(
-        studentsToNotify,
-        "This is an important notification from the school attendance system regarding attendance issues. Please contact the school as soon as possible.",
-        notificationType
-      );
-      
+      console.log("Bulk notifications sent:", data);
     } catch (error) {
       console.error("Failed to send bulk notifications:", error);
       
@@ -79,8 +79,8 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
   };
   
   // Send notification to a specific student
-  const notifyStudent = async (summary: AttendanceSummary, notificationType: 'sms' | 'email' = 'sms') => {
-    if (!summary.studentId) {
+  const notifyStudent = async (student: AttendanceSummary, notificationType: 'sms' | 'email' = 'sms') => {
+    if (!student.studentId) {
       toast({
         title: "Notification Failed",
         description: "Missing student ID for notification",
@@ -90,41 +90,44 @@ const AttendanceTrends: React.FC<AttendanceTrendsProps> = ({ trendData, isLoadin
       return;
     }
     
-    // Find the full student object
-    const student = findStudentById(summary.studentId);
-    if (!student) {
-      toast({
-        title: "Notification Failed",
-        description: "Could not find student details",
-        variant: "destructive",
-        duration: 3000,
-      });
-      return;
-    }
-    
     // Set student-specific notification state
-    setNotifyingStudent(prev => ({ ...prev, [summary.studentId!]: true }));
+    setNotifyingStudent(prev => ({ ...prev, [student.studentId!]: true }));
     
     try {
-      // Create appropriate message based on attendance issues
-      const message = summary.consecutiveAbsences && summary.consecutiveAbsences >= 3
-        ? `This is an important notification from the school attendance system. ${summary.studentName} has been absent for ${summary.consecutiveAbsences} consecutive days. Please contact the school immediately.`
-        : `This is a notification from the school attendance system. ${summary.studentName} has missed ${summary.absenceRate?.toFixed(1)}% of classes in the last 30 days.`;
+      // Call the Edge Function to send the notification
+      const { data, error } = await supabase.functions.invoke('send-absence-notification', {
+        body: {
+          studentId: student.studentId,
+          date: new Date().toISOString().split('T')[0],
+          notificationType,
+          message: student.consecutiveAbsences && student.consecutiveAbsences >= 3
+            ? `This is an important notification from the school attendance system. ${student.studentName} has been absent for ${student.consecutiveAbsences} consecutive days. Please contact the school immediately.`
+            : `This is a notification from the school attendance system. ${student.studentName} has missed ${student.absenceRate?.toFixed(1)}% of classes in the last 30 days.`
+        }
+      });
       
-      // Send the notification
-      await sendStudentNotification(student, message, notificationType);
+      if (error) {
+        throw new Error(error.message);
+      }
       
+      toast({
+        title: "Notification Sent",
+        description: `Parents of ${student.studentName} have been alerted about attendance issues via ${data.channel || notificationType}.`,
+        duration: 3000,
+      });
+      
+      console.log("Individual notification sent:", data);
     } catch (error) {
       console.error("Failed to send notification:", error);
       
       toast({
         title: "Notification Failed",
-        description: `Failed to send notification to parents of ${summary.studentName}: ${error.message}`,
+        description: `Failed to send notification to parents of ${student.studentName}: ${error.message}`,
         variant: "destructive",
         duration: 5000,
       });
     } finally {
-      setNotifyingStudent(prev => ({ ...prev, [summary.studentId!]: false }));
+      setNotifyingStudent(prev => ({ ...prev, [student.studentId!]: false }));
     }
   };
   

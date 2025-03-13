@@ -16,7 +16,6 @@ import {
   checkAttendanceTrends 
 } from "@/lib/attendanceSupabase";
 import { AttendanceSummary, ClassSummary, Student } from "@/lib/types";
-import ExtendedStudentList from "@/components/attendance/ExtendedStudentList";
 
 const formatDate = (date: Date): string => {
   return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -219,73 +218,6 @@ const Index = () => {
     return "Student List";
   };
 
-  const handleRecordAttendance = async (studentId: string, status: "present" | "absent" | "late" | "excused") => {
-    try {
-      const { data: existingRecord } = await supabase
-        .from("attendance_records")
-        .select("id")
-        .eq("student_id", studentId)
-        .eq("date", today)
-        .single();
-
-      if (existingRecord) {
-        await supabase
-          .from("attendance_records")
-          .update({ status })
-          .eq("id", existingRecord.id);
-      } else {
-        await supabase
-          .from("attendance_records")
-          .insert({
-            student_id: studentId,
-            date: today,
-            status
-          });
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ['today-attendance-records'] });
-      await queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
-      await queryClient.invalidateQueries({ queryKey: ['class-summaries'] });
-
-      toast({
-        title: "Attendance recorded",
-        description: `Student attendance marked as ${status} for today.`,
-      });
-    } catch (error: any) {
-      console.error("Error recording attendance:", error);
-      
-      toast({
-        title: "Error recording attendance",
-        description: error.message || "An error occurred while recording attendance.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteStudent = async (studentId: string) => {
-    try {
-      await supabase
-        .from("students")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", studentId);
-
-      await queryClient.invalidateQueries({ queryKey: ['students-dashboard'] });
-      
-      toast({
-        title: "Student deleted",
-        description: "The student has been moved to the recycle bin.",
-      });
-    } catch (error: any) {
-      console.error("Error deleting student:", error);
-      
-      toast({
-        title: "Error deleting student",
-        description: error.message || "An error occurred while deleting the student.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const isLoading = isLoadingStudents || isLoadingAttendance || isLoadingClasses || isLoadingTodayAttendance || isLoadingTrends || isRefreshing;
 
   return (
@@ -376,25 +308,21 @@ const Index = () => {
           <AttendanceTrends 
             trendData={attendanceTrends} 
             isLoading={isLoadingTrends} 
-            students={students}  
           />
         </div>
 
         <div className="mt-8">
           <h2 className="text-2xl font-semibold mb-3">{getFilterTitle()}</h2>
           {students.length > 0 ? (
-            <ExtendedStudentList 
+            <StudentList 
               students={students} 
               isLoading={isLoading}
               date={today}
               attendanceRecords={todayAttendanceRecords}
-              onRecordAttendance={handleRecordAttendance}
-              onDeleteStudent={handleDeleteStudent}
               filterStatus={selectedFilter.type === "status" && selectedFilter.value !== "attendance" ? 
                 (selectedFilter.value as "present" | "absent" | "late" | "excused" | null) : 
                 null}
               selectedClass={selectedFilter.type === "class" ? selectedFilter.value : null}
-              allStudents={students}
             />
           ) : (
             <p>No students found. Import students first.</p>
