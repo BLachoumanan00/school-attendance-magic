@@ -115,6 +115,7 @@ const ExtendedStudentList: React.FC<ExtendedStudentListProps> = ({
         </Button>
       </div>
       
+      {/* Removing the onAnalyzeTrends prop since it's not in the interface */}
       <StudentList
         students={students}
         date={date}
@@ -122,10 +123,9 @@ const ExtendedStudentList: React.FC<ExtendedStudentListProps> = ({
         onRecordAttendance={onRecordAttendance}
         onDeleteStudent={onDeleteStudent}
         isLoading={isLoading}
-        onAnalyzeTrends={analyzeAttendanceTrends}
         attendanceCardExtraProps={attendanceCardExtendedProps}
-        filterStatus={filterStatus} // Pass the prop
-        selectedClass={selectedClass} // Pass the prop
+        filterStatus={filterStatus}
+        selectedClass={selectedClass}
       />
       
       {trendData.length > 0 && (
