@@ -9,6 +9,7 @@ import AttendanceCard from "./AttendanceCard";
 import AttendanceTrends from "./AttendanceTrends";
 import { checkAttendanceTrends } from "@/lib/attendanceSupabase";
 import ContactOptions from "./ContactOptions";
+import StudentList from "./StudentList"; // Properly import StudentList
 
 interface ExtendedStudentListProps {
   students: Student[];
@@ -98,9 +99,6 @@ const ExtendedStudentList: React.FC<ExtendedStudentListProps> = ({
     };
   };
 
-  // Use the original StudentList component
-  const StudentListOriginal = require('./StudentList').default;
-  
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-4">
@@ -117,7 +115,7 @@ const ExtendedStudentList: React.FC<ExtendedStudentListProps> = ({
         </Button>
       </div>
       
-      <StudentListOriginal
+      <StudentList
         students={students}
         date={date}
         attendanceRecords={attendanceRecords}
